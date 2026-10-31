@@ -1,0 +1,804 @@
+<title>Enterprise CD on GitHub</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: WQ Learn Book topic page. Sky header, sticky TOC, single reading column; sections L1 → L2 → L3 colour-keyed like the home page. */
+:root{
+  --bg:#f3f9ff; --surface:#ffffff; --sky:#d6ecff; --sky-2:#b8dcff;
+  --ink:#0f2a44; --muted:#4b6684; --line:#cfe2f5; --accent:#1a7fd6; --accent-ink:#ffffff;
+  --l1:#3aa0ff; --l2:#22b8c9; --l3:#5b7cfa;
+  --code-bg:#eaf4ff; --code-ink:#12324f;
+  --good:#14845a; --bad:#c2410c; --warn-bg:#fff6e5; --warn-line:#f2c56b; --warn-ink:#7a4a00;
+  --display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+  --body:"Source Sans 3","Segoe UI",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0b1a2b; --surface:#11243a; --sky:#14314f; --sky-2:#1b4068;
+    --ink:#e4f1ff; --muted:#9db7d3; --line:#21405f; --accent:#5cb4ff; --accent-ink:#06192b;
+    --l1:#5cb4ff; --l2:#3fd0de; --l3:#8aa0ff; --code-bg:#0e2034; --code-ink:#d6e9ff;
+    --good:#4ade9a; --bad:#fb923c; --warn-bg:#2a2112; --warn-line:#7a5a1e; --warn-ink:#f7d58a; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0b1a2b; --surface:#11243a; --sky:#14314f; --sky-2:#1b4068;
+  --ink:#e4f1ff; --muted:#9db7d3; --line:#21405f; --accent:#5cb4ff; --accent-ink:#06192b;
+  --l1:#5cb4ff; --l2:#3fd0de; --l3:#8aa0ff; --code-bg:#0e2034; --code-ink:#d6e9ff;
+  --good:#4ade9a; --bad:#fb923c; --warn-bg:#2a2112; --warn-line:#7a5a1e; --warn-ink:#f7d58a; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.6}
+.wrap{max-width:920px;margin:0 auto;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px))}
+h1,h2,h3,h4{font-family:var(--display);line-height:1.2;text-wrap:balance;margin:0}
+p{margin:0}
+a{color:var(--accent)}
+a:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+code{font-family:var(--mono);font-size:.84em;background:var(--code-bg);padding:1px 5px;border-radius:5px;overflow-wrap:anywhere}
+pre{margin:0;background:var(--code-bg);color:var(--code-ink);border:1px solid var(--line);border-radius:10px;padding:14px 16px;overflow-x:auto;font-family:var(--mono);font-size:13px;line-height:1.55}
+pre code{background:none;padding:0;font-size:inherit;overflow-wrap:normal}
+pre.mermaid{background:var(--surface);text-align:center}
+ul,ol{margin:0;padding-left:22px}
+li{margin:3px 0}
+
+.hero{background:linear-gradient(180deg,var(--sky) 0%,var(--bg) 100%);border-bottom:1px solid var(--line)}
+.hero .wrap{padding-block:40px 32px;display:grid;gap:12px}
+.crumb{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+.hero h1{font-size:clamp(32px,6vw,52px);font-weight:800;letter-spacing:-.02em}
+.lede{max-width:65ch;color:var(--muted);font-size:18px}
+.meta{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font-family:var(--mono);font-size:12px;padding:4px 10px;border-radius:999px;background:var(--surface);border:1px solid var(--line);color:var(--muted)}
+
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top, 0px);z-index:10;background:var(--bg)}
+.toc-box{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 20px;display:grid;gap:10px}
+.toc-box h2{font-size:15px;font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.toc-cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.toc-cols ol{padding-left:0;list-style:none;display:grid;gap:3px}
+.toc-cols > div{min-width:0}
+.toc-cols h3{font-size:16px;margin-bottom:6px;display:flex;gap:8px;align-items:center}
+.toc-cols a{text-decoration:none;color:var(--ink);font-size:15px}
+.toc-cols a:hover{color:var(--accent);text-decoration:underline}
+.dot{width:10px;height:10px;border-radius:3px;display:inline-block;flex:none}
+.d1{background:var(--l1)} .d2{background:var(--l2)} .d3{background:var(--l3)}
+
+main .wrap{display:grid;gap:56px;padding-block:32px 72px}
+.part{display:grid;gap:28px;scroll-margin-top:16px}
+.part-head{display:grid;gap:6px;padding-bottom:12px;border-bottom:3px solid var(--l1)}
+.p2 .part-head{border-color:var(--l2)} .p3 .part-head{border-color:var(--l3)}
+.part-head .lvl{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.part-head h2{font-size:clamp(26px,4vw,34px);font-weight:700}
+.block{display:grid;gap:14px;scroll-margin-top:16px;min-width:0}
+.block > h3{font-size:22px;font-weight:700}
+.block h4{font-size:17px;font-weight:700}
+.prose{display:grid;gap:12px;max-width:72ch}
+.prose p,.prose li{color:var(--ink)}
+.muted{color:var(--muted)}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;display:grid;gap:8px;min-width:0}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.fit{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.fit .card h4{font-size:15px;font-family:var(--mono);font-weight:500;letter-spacing:.06em;text-transform:uppercase}
+.fit .yes h4{color:var(--good)} .fit .no h4{color:var(--bad)}
+
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:620px;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:10px 14px;border-top:1px solid var(--line)}
+thead th{border-top:0;background:var(--sky);font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500}
+td:first-child{font-weight:600}
+
+.note{border:1px solid var(--warn-line);background:var(--warn-bg);color:var(--warn-ink);border-radius:10px;padding:12px 14px;font-size:15px;display:grid;gap:4px}
+.note strong{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+.tip{border:1px solid var(--line);background:var(--sky);border-radius:10px;padding:12px 14px;font-size:15px}
+
+.steps{counter-reset:s;display:grid;gap:18px}
+.step{display:grid;grid-template-columns:36px 1fr;gap:14px}
+.step::before{counter-increment:s;content:counter(s);width:32px;height:32px;border-radius:50%;background:var(--l3);color:var(--accent-ink);display:grid;place-items:center;font-family:var(--display);font-weight:700}
+.step > div{display:grid;gap:10px;min-width:0}
+
+.file{font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:-8px}
+.refs li{margin:6px 0}
+footer .wrap{padding-block:24px 40px;border-top:1px solid var(--line);color:var(--muted);font-size:14px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+
+@media (max-width:720px){
+  .toc-cols,.grid2,.fit{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:no-preference){ html{scroll-behavior:smooth} }
+</style>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="crumb">WQ Learn Book · Topic 01 · CI/CD</div>
+    <h1>Enterprise Continuous Deployment on GitHub</h1>
+    <p class="lede">A promotion pipeline in GitHub Actions that builds once, stores every artifact in JFrog, and ships the same version through dev, QA and prod on GCP: GKE, Cloud Run, Cloud Storage and Cloud Functions.</p>
+    <div class="meta">
+      <span class="chip">Added 28 Oct 2026</span>
+      <span class="chip">GitHub Actions</span>
+      <span class="chip">JFrog Artifactory</span>
+      <span class="chip">GCP</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+
+    <nav class="toc-box" aria-label="Table of contents">
+      <h2>Table of contents</h2>
+      <div class="toc-cols">
+        <div>
+          <h3><span class="dot d1"></span><a href="#arch">1. Architecture</a></h3>
+          <ol>
+            <li><a href="#arch-scenario">1.1 The reference scenario</a></li>
+            <li><a href="#arch-a">1.2 A · Push-based promotion</a></li>
+            <li><a href="#arch-b">1.3 B · Hybrid GitOps</a></li>
+            <li><a href="#arch-c">1.4 C · Platform-owned templates</a></li>
+            <li><a href="#arch-compare">1.5 Choosing between them</a></li>
+          </ol>
+        </div>
+        <div>
+          <h3><span class="dot d2"></span><a href="#theory">2. Theory</a></h3>
+          <ol>
+            <li><a href="#th-what">2.1 What CD is</a></li>
+            <li><a href="#th-principles">2.2 Core principles</a></li>
+            <li><a href="#th-repos">2.3 Repo layout: 3 vs 2</a></li>
+            <li><a href="#th-github">2.4 GitHub building blocks</a></li>
+            <li><a href="#th-targets">2.5 Per-target behaviour</a></li>
+            <li><a href="#th-problems">2.6 Problems it solves</a></li>
+            <li><a href="#th-proscons">2.7 Pros and cons</a></li>
+          </ol>
+        </div>
+        <div>
+          <h3><span class="dot d3"></span><a href="#impl">3. Implementation</a></h3>
+          <ol>
+            <li><a href="#im-setup">3.1 One-time setup</a></li>
+            <li><a href="#im-build">3.2 Build workflow</a></li>
+            <li><a href="#im-deploy">3.3 Reusable deploy workflow</a></li>
+            <li><a href="#im-pipeline">3.4 Promotion pipeline</a></li>
+            <li><a href="#im-local">3.5 Test it locally</a></li>
+            <li><a href="#refs">References</a></li>
+          </ol>
+        </div>
+      </div>
+    </nav>
+
+    <!-- ===================== PART 1 ===================== -->
+    <section id="arch" class="part p1">
+      <div class="part-head">
+        <span class="lvl">Level 1 · High-level architecture</span>
+        <h2>1. Architecture examples</h2>
+      </div>
+
+      <div class="block" id="arch-scenario">
+        <h3>1.1 The reference scenario</h3>
+        <div class="prose">
+          <p>All three architectures solve the same problem:</p>
+          <ul>
+            <li><strong>Source and orchestration:</strong> GitHub (repos, Actions, Environments).</li>
+            <li><strong>Artifact store:</strong> JFrog Artifactory for Docker images and generic artifacts (function zips, static site bundles).</li>
+            <li><strong>Environments:</strong> <code>dev</code>, <code>qa</code>, <code>prod</code>. The common enterprise layout is one GCP project per environment, which gives you separate IAM, quotas and billing per stage.</li>
+            <li><strong>Targets:</strong> GKE (Kubernetes), Cloud Run, Cloud Storage (static assets), Cloud Functions.</li>
+          </ul>
+          <p>The rule shared by all three: <strong>build once, promote the same artifact</strong>. Prod runs the exact bytes that passed QA.</p>
+        </div>
+      </div>
+
+      <div class="block" id="arch-a">
+        <h3>1.2 Architecture A · Push-based promotion pipeline</h3>
+        <div class="prose">
+          <p>GitHub Actions does everything. One workflow builds and pushes to JFrog. A second workflow walks the artifact through environments. Each stage is a job bound to a GitHub Environment, which supplies approvals and environment-scoped variables. Promotion in JFrog is a copy between repositories (<code>docker-dev-local</code> → <code>docker-qa-local</code> → <code>docker-prod-local</code>). A two-repo layout (nonprod → prod) also works; see <a href="#th-repos">2.3</a> for the trade-off.</p>
+        </div>
+<pre class="mermaid">
+flowchart LR
+  dev([Developer]) -->|merge to main| gh[GitHub Actions<br/>build + test + scan]
+  gh -->|jf docker push| jdev[(JFrog<br/>docker-dev-local)]
+  jdev --> d1[Deploy DEV<br/>env: dev]
+  d1 --> g1{QA gate<br/>reviewers}
+  g1 -->|jf rt docker-promote| jqa[(JFrog<br/>docker-qa-local)]
+  jqa --> d2[Deploy QA<br/>env: qa]
+  d2 --> g2{Prod gate<br/>reviewers + branch rule}
+  g2 -->|jf rt docker-promote| jprod[(JFrog<br/>docker-prod-local)]
+  jprod --> d3[Deploy PROD<br/>env: prod]
+  d1 & d2 & d3 -->|OIDC to WIF| gcp[GCP project per env<br/>GKE · Cloud Run · GCS · Functions]
+</pre>
+        <div class="fit">
+          <div class="card yes"><h4>Fits when</h4><ul><li>One team owns app and pipeline</li><li>Mixed targets (serverless + GKE)</li><li>You want one place (GitHub UI) to see every deploy</li></ul></div>
+          <div class="card no"><h4>Watch out for</h4><ul><li>Runners need network access to every target</li><li>GitHub holds deploy rights to prod (kept short-lived via OIDC)</li><li>Drift in GKE is not corrected between deploys</li></ul></div>
+        </div>
+      </div>
+
+      <div class="block" id="arch-b">
+        <h3>1.3 Architecture B · Hybrid GitOps (pull for GKE, push for serverless)</h3>
+        <div class="prose">
+          <p>GitHub Actions still builds and promotes in JFrog. For GKE, instead of running <code>kubectl apply</code>, the pipeline commits the new image digest into an <strong>environment config repo</strong>. A GitOps controller inside each cluster (Argo CD or Flux) pulls that repo and reconciles. Cloud Run, Functions and GCS have no in-cluster controller, so they stay push-based from Actions.</p>
+        </div>
+<pre class="mermaid">
+flowchart LR
+  gh[GitHub Actions<br/>build + promote] -->|push image| jf[(JFrog)]
+  gh -->|PR: bump digest<br/>overlays/qa| cfg[(env-config repo)]
+  cfg -->|watch + pull| argo[Argo CD / Flux<br/>in each GKE cluster]
+  argo -->|reconcile| gke[GKE dev / qa / prod]
+  gke -->|pull image| jf
+  gh -->|push deploy via OIDC| sl[Cloud Run · Functions · GCS]
+</pre>
+        <div class="fit">
+          <div class="card yes"><h4>Fits when</h4><ul><li>GKE is the main platform and several teams share clusters</li><li>You want Git as the audit log of what runs in prod</li><li>Clusters are private and should not accept inbound deploys</li></ul></div>
+          <div class="card no"><h4>Watch out for</h4><ul><li>Two deployment models to operate and explain</li><li>Pipeline "success" no longer means "running"; you need sync status feedback</li><li>Extra repo and controller to maintain</li></ul></div>
+        </div>
+      </div>
+
+      <div class="block" id="arch-c">
+        <h3>1.4 Architecture C · Platform-owned reusable workflows with private runners</h3>
+        <div class="prose">
+          <p>A platform team publishes versioned <strong>reusable workflows</strong> (build, promote, deploy-gke, deploy-run, deploy-gcs, deploy-function) in one central repo. Application repos call them with a few inputs and cannot change the deploy logic. Jobs run on <strong>self-hosted runners inside GCP</strong> (for example Actions Runner Controller on a GKE tooling cluster), so private GKE endpoints and an internal JFrog are reachable without public exposure.</p>
+        </div>
+<pre class="mermaid">
+flowchart TB
+  subgraph Apps[Application repos]
+    a1[svc-payments] & a2[svc-pricing] & a3[web-portal]
+  end
+  subgraph Platform[platform-workflows repo · tagged v1, v2]
+    rb[build.yml] & rp[promote.yml] & rd[deploy-*.yml]
+  end
+  a1 & a2 & a3 -->|uses: org/platform-workflows/...@v2| Platform
+  Platform --> runners[Self-hosted runners in GCP VPC]
+  runners --> jf[(JFrog)]
+  runners --> envs[dev / qa / prod projects]
+</pre>
+        <div class="fit">
+          <div class="card yes"><h4>Fits when</h4><ul><li>Many repos must follow the same controls (SOX/MAS-style audit)</li><li>Targets are private-network only</li><li>A platform team exists to own the templates</li></ul></div>
+          <div class="card no"><h4>Watch out for</h4><ul><li>Template changes affect every team; version them like an API</li><li>Self-hosted runners are infrastructure you patch and secure</li><li>Less flexibility for unusual apps</li></ul></div>
+        </div>
+      </div>
+
+      <div class="block" id="arch-compare">
+        <h3>1.5 Choosing between them</h3>
+        <div class="tbl">
+          <table>
+            <thead><tr><th>Concern</th><th>A · Push promotion</th><th>B · Hybrid GitOps</th><th>C · Platform templates</th></tr></thead>
+            <tbody>
+              <tr><td>Who applies changes to GKE</td><td>Runner (<code>kubectl</code>)</td><td>In-cluster controller</td><td>Runner, via shared template</td></tr>
+              <tr><td>Drift correction</td><td>No</td><td>Yes, continuous</td><td>No (unless combined with B)</td></tr>
+              <tr><td>Network exposure</td><td>Runner must reach targets</td><td>Cluster only pulls outbound</td><td>Private runners, no public endpoints</td></tr>
+              <tr><td>Standardisation across teams</td><td>Low</td><td>Medium</td><td>High</td></tr>
+              <tr><td>Setup effort</td><td>Lowest</td><td>Medium</td><td>Highest</td></tr>
+              <tr><td>Good first step?</td><td>Yes</td><td>After A works</td><td>When you have 10+ repos</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="muted">These combine. A common end state is C's templates running B's model for GKE and A's model for serverless targets.</p>
+      </div>
+    </section>
+
+    <!-- ===================== PART 2 ===================== -->
+    <section id="theory" class="part p2">
+      <div class="part-head">
+        <span class="lvl">Level 2 · Theory</span>
+        <h2>2. Theory</h2>
+      </div>
+
+      <div class="block" id="th-what">
+        <h3>2.1 What continuous deployment is</h3>
+        <div class="prose">
+          <p><strong>Continuous integration</strong> merges and tests code often. <strong>Continuous delivery</strong> keeps every passing build in a releasable state, with a human deciding when to release. <strong>Continuous deployment</strong> removes that last manual step for some or all environments.</p>
+          <p>In regulated enterprises the usual shape is continuous deployment to dev, and continuous delivery to QA and prod: the pipeline is fully automated, but approvals gate the higher environments. That is the model on this page.</p>
+        </div>
+      </div>
+
+      <div class="block" id="th-principles">
+        <h3>2.2 Core principles and why the industry uses them</h3>
+        <div class="grid2">
+          <div class="card"><h4>Build once, promote many</h4><p class="muted">Rebuilding per environment can produce different bytes (new base image, new dependency). Promoting the same artifact means QA tested exactly what prod runs.</p></div>
+          <div class="card"><h4>Immutable, addressable artifacts</h4><p class="muted">Deploy by image digest (<code>@sha256:…</code>), not a mutable tag like <code>latest</code>. A tag can be moved; a digest cannot.</p></div>
+          <div class="card"><h4>Config separate from artifact</h4><p class="muted">The image is identical across environments. Environment differences (project ID, URLs, replica counts) come from environment variables, overlays or Secret Manager.</p></div>
+          <div class="card"><h4>Promotion as a state change</h4><p class="muted">Moving an artifact to <code>docker-qa-local</code> records that it passed dev. The repository it sits in tells you how far it has progressed.</p></div>
+          <div class="card"><h4>Keyless, short-lived credentials</h4><p class="muted">OIDC federation lets each job exchange a GitHub-signed token for short-lived GCP and JFrog credentials. No long-lived keys stored in GitHub.</p></div>
+          <div class="card"><h4>Least privilege per environment</h4><p class="muted">Each environment has its own GCP project, service account and trust condition. A dev job cannot get prod credentials.</p></div>
+        </div>
+      </div>
+
+      <div class="block" id="th-repos">
+        <h3>2.3 Artifact repo layout: three repos or two?</h3>
+        <div class="prose">
+          <p>The non-negotiable part is a <strong>hard boundary in front of prod</strong>: prod clusters and services can only pull from a repo that artifacts enter by promotion alone. Both layouts below give you that. They differ in how the dev and QA stages are recorded.</p>
+        </div>
+        <div class="tbl">
+          <table>
+            <thead><tr><th>Concern</th><th>Three repos (used on this page)</th><th>Two repos (alternative)</th></tr></thead>
+            <tbody>
+              <tr><td>Layout</td><td><code>docker-dev-local</code> → <code>docker-qa-local</code> → <code>docker-prod-local</code></td><td><code>docker-nonprod-local</code> → <code>docker-prod-local</code></td></tr>
+              <tr><td>How stage is recorded</td><td>By location: the repo an image sits in is its stage</td><td>By metadata: an Artifactory property (e.g. <code>qa.status=passed</code>), build promotion status, or GitHub deployment history</td></tr>
+              <tr><td>QA pulls only dev-passed images</td><td>Enforced by repo permissions</td><td>Not enforced by the store; relies on the pipeline</td></tr>
+              <tr><td>Retention</td><td>Clean dev aggressively, keep QA candidates longer, per repo</td><td>One cleanup policy must tell dev-only from QA-approved images, usually by property</td></tr>
+              <tr><td>Scan policy per stage</td><td>Attach stricter policies from the QA repo onward</td><td>One policy for all nonprod, or rules keyed on properties</td></tr>
+              <tr><td>Promotion steps</td><td>Two (dev→qa, qa→prod)</td><td>One (nonprod→prod)</td></tr>
+              <tr><td>Repos, credentials and pull secrets to manage</td><td>More</td><td>Fewer</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="grid2">
+          <div class="card"><h4>Why this page uses three</h4><p class="muted">The scenario is a regulated enterprise. Three repos let the artifact store itself show audit evidence of how far each image got, enforce that QA never runs an untested dev build, and apply different retention and scanning per stage, without depending on tags or properties being set correctly.</p></div>
+          <div class="card"><h4>When to choose two</h4><p class="muted">QA is a test environment rather than a control point, and the audit trail of what reached QA can live in GitHub Environments and deployment history. You get one promotion step, fewer repos and simpler credentials. The prod boundary is unchanged.</p></div>
+        </div>
+        <div class="note"><strong>Unsure</strong><span>Newer JFrog platforms offer Release Lifecycle Management, where a release bundle is promoted between named environments instead of copied between repos. That could replace repo-per-stage entirely, but I have not verified its current behaviour or licensing. Check your Artifactory version before designing around it.</span></div>
+      </div>
+
+      <div class="block" id="th-github">
+        <h3>2.4 GitHub building blocks</h3>
+        <div class="tbl">
+          <table>
+            <thead><tr><th>Feature</th><th>What it gives you</th><th>Used for</th></tr></thead>
+            <tbody>
+              <tr><td>Environments</td><td>Named targets with their own secrets and variables, readable only by jobs that reference the environment, and only after its rules pass</td><td>dev / qa / prod config and gating</td></tr>
+              <tr><td>Required reviewers</td><td>Up to 6 people or teams; one approval releases the job. Optional "prevent self-review"</td><td>QA and prod sign-off</td></tr>
+              <tr><td>Wait timer</td><td>Delay in minutes before the job proceeds</td><td>Soak time after QA</td></tr>
+              <tr><td>Deployment branches and tags</td><td>Only matching branches or tags may deploy to the environment</td><td>Prod only from <code>main</code> or release tags</td></tr>
+              <tr><td>Custom protection rules</td><td>A GitHub App approves or rejects the deployment</td><td>Change-ticket checks, monitoring gates</td></tr>
+              <tr><td>Reusable workflows</td><td><code>workflow_call</code> workflows invoked by other workflows</td><td>One deploy definition for all environments</td></tr>
+              <tr><td>OIDC token</td><td>Job requests a signed JWT with <code>permissions: id-token: write</code></td><td>Auth to GCP (Workload Identity Federation) and JFrog</td></tr>
+              <tr><td>Concurrency groups</td><td>Serialise or cancel runs sharing a group key</td><td>Never two prod deploys at once</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="note"><strong>Plan check</strong><span>Per GitHub's docs, on Free, Pro and Team plans, required reviewers and wait timers on environments are only available for public repositories. For private repos you need GitHub Enterprise. I could not confirm the exact Enterprise wording from the page, so confirm against your org's plan.</span></div>
+      </div>
+
+      <div class="block" id="th-targets">
+        <h3>2.5 How each GCP target behaves</h3>
+        <div class="tbl">
+          <table>
+            <thead><tr><th>Target</th><th>Artifact</th><th>How it gets the artifact</th><th>Release strategy</th></tr></thead>
+            <tbody>
+              <tr><td>GKE</td><td>Docker image in JFrog</td><td>Nodes pull directly from JFrog using an <code>imagePullSecret</code>, or through an Artifact Registry remote repo</td><td>Rolling update (default); canary or blue/green with Gateway API or Argo Rollouts</td></tr>
+              <tr><td>Cloud Run</td><td>Docker image in JFrog</td><td>Not a direct pull from JFrog. Use an <strong>Artifact Registry remote repository</strong> pointing at JFrog, or copy the image into Artifact Registry</td><td>Deploy a revision with no traffic, then shift traffic gradually</td></tr>
+              <tr><td>Cloud Storage</td><td>Static bundle (zip/tar) in a JFrog generic repo</td><td>Download from JFrog, then <code>gcloud storage rsync</code> to the bucket</td><td>Versioned prefixes or bucket object versioning; rollback by re-syncing the previous bundle</td></tr>
+              <tr><td>Cloud Functions (2nd gen)</td><td>Source zip in a JFrog generic repo</td><td>Deploy from source; Google builds the container during deploy</td><td>New revision per deploy; underlying service is Cloud Run</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="note"><strong>Two caveats</strong><span><b>Cloud Run and JFrog:</b> Google documents Artifact Registry remote repositories as the way to use images from JFrog or Nexus, including private ones with credentials in Secret Manager. There is also a newer "connector repository" mode that does not cache; Google labels it Pre-GA.<br><b>Cloud Functions and build-once:</b> because Functions builds from source at deploy time, each environment produces its own container. You can promote the same source zip, but not the same image. If byte-identical promotion matters, package the function as a container and deploy it to Cloud Run instead.</span></div>
+      </div>
+
+      <div class="block" id="th-problems">
+        <h3>2.6 Problems it solves</h3>
+        <div class="prose">
+          <ul>
+            <li><strong>"It worked in QA":</strong> promotion of one artifact removes rebuild differences.</li>
+            <li><strong>Untraceable releases:</strong> JFrog build info links image → commit → workflow run; GitHub records who approved each deployment.</li>
+            <li><strong>Leaked cloud keys:</strong> OIDC removes JSON service-account keys from GitHub secrets.</li>
+            <li><strong>Manual, slow releases:</strong> deploy steps are code, reviewed and repeatable.</li>
+            <li><strong>Separation of duties:</strong> the author cannot approve their own prod deploy when prevent self-review is on.</li>
+            <li><strong>Slow rollback:</strong> the previous digest is still in JFrog; redeploying it is one run.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="block" id="th-proscons">
+        <h3>2.7 Pros and cons</h3>
+        <div class="fit">
+          <div class="card yes"><h4>Pros</h4><ul>
+            <li>One artifact, full lineage from commit to prod</li>
+            <li>Approvals and audit trail native to GitHub</li>
+            <li>No stored cloud credentials</li>
+            <li>Same deploy code for every environment</li>
+            <li>JFrog acts as a single gate for scanning and retention</li>
+          </ul></div>
+          <div class="card no"><h4>Cons</h4><ul>
+            <li>More moving parts: GitHub, JFrog, WIF, per-env projects</li>
+            <li>Cloud Run needs the Artifact Registry bridge to JFrog</li>
+            <li>Functions cannot be fully build-once</li>
+            <li>Approval gates add lead time; teams may batch changes</li>
+            <li>Harder to test the pipeline itself locally (see 3.5)</li>
+          </ul></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== PART 3 ===================== -->
+    <section id="impl" class="part p3">
+      <div class="part-head">
+        <span class="lvl">Level 3 · Implementation</span>
+        <h2>3. Implementation</h2>
+      </div>
+      <p class="prose muted">This implements Architecture A. Names in <code>UPPER_CASE</code> are placeholders. Action versions are those in the official READMEs I checked; pin them to commit SHAs in production, as GitHub recommends.</p>
+
+      <div class="block" id="im-setup">
+        <h3>3.1 One-time setup</h3>
+        <div class="steps">
+          <div class="step"><div>
+            <h4>Repository layout</h4>
+<pre><code>.github/workflows/
+  build.yml          # CI: build, test, push to JFrog dev
+  deploy.yml         # reusable: deploy one env, all targets
+  pipeline.yml       # CD: dev -> qa -> prod
+k8s/
+  base/              # Deployment, Service
+  overlays/dev|qa|prod/kustomization.yaml
+function/            # Cloud Functions source
+web/                 # static site for GCS</code></pre>
+          </div></div>
+
+          <div class="step"><div>
+            <h4>GitHub Environments</h4>
+            <p>Create <code>dev</code>, <code>qa</code>, <code>prod</code> under Settings → Environments. Add environment <strong>variables</strong> (not secrets; nothing here is secret):</p>
+<pre><code>GCP_PROJECT_ID      = my-app-dev | my-app-qa | my-app-prod
+GCP_REGION          = asia-southeast1
+WIF_PROVIDER        = projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/github/providers/github
+DEPLOY_SA           = deployer@my-app-ENV.iam.gserviceaccount.com
+GKE_CLUSTER         = gke-ENV
+JF_DOCKER_REPO      = docker-ENV-local</code></pre>
+            <p>Protection: <code>qa</code> gets required reviewers; <code>prod</code> gets required reviewers, prevent self-review and deployment branches limited to <code>main</code>.</p>
+          </div></div>
+
+          <div class="step"><div>
+            <h4>Workload Identity Federation (per GCP project)</h4>
+            <p>Google requires an attribute condition that restricts to your organisation, because GitHub uses one issuer for everyone. Adding the environment to the condition means only jobs running in the <code>prod</code> environment can use the prod provider.</p>
+<pre><code>gcloud iam workload-identity-pools create github \
+  --project=my-app-prod --location=global
+
+gcloud iam workload-identity-pools providers create-oidc github \
+  --project=my-app-prod --location=global \
+  --workload-identity-pool=github \
+  --issuer-uri="https://token.actions.githubusercontent.com/" \
+  --attribute-mapping="google.subject=assertion.sub,attribute.repository_id=assertion.repository_id,attribute.environment=assertion.environment" \
+  --attribute-condition="assertion.repository_owner=='MY_ORG' &amp;&amp; assertion.environment=='prod'"
+
+gcloud iam service-accounts add-iam-policy-binding \
+  deployer@my-app-prod.iam.gserviceaccount.com \
+  --role=roles/iam.workloadIdentityUser \
+  --member="principalSet://iam.googleapis.com/projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/github/attribute.repository_id/REPO_ID"</code></pre>
+            <p class="muted">Google recommends numeric claims such as <code>repository_id</code> over names, because a deleted repo name can be re-registered by someone else. Grant the deployer SA only what it needs, for example <code>roles/container.developer</code>, <code>roles/run.developer</code>, <code>roles/cloudfunctions.developer</code>, bucket-level <code>roles/storage.objectAdmin</code>, plus <code>roles/iam.serviceAccountUser</code> on the runtime service accounts.</p>
+          </div></div>
+
+          <div class="step"><div>
+            <h4>JFrog OIDC integration</h4>
+            <p>In the JFrog Platform, create an OIDC integration for GitHub (provider name, e.g. <code>github-oidc</code>) and an identity mapping. GitHub's guide recommends a claims JSON including <code>iss</code>, <code>repository</code> and <code>event_name</code>; mappings match claims exactly.</p>
+<pre><code>{
+  "iss": "https://token.actions.githubusercontent.com",
+  "repository": "MY_ORG/my-app",
+  "event_name": "push"
+}</code></pre>
+            <p>Create local repos <code>docker-dev-local</code>, <code>docker-qa-local</code>, <code>docker-prod-local</code> and a generic repo <code>generic-releases-local</code>. For the two-repo layout from <a href="#th-repos">2.3</a>, create <code>docker-nonprod-local</code> and <code>docker-prod-local</code> instead.</p>
+          </div></div>
+
+          <div class="step"><div>
+            <h4>Let Cloud Run reach JFrog</h4>
+            <p>In each project, create an Artifact Registry Docker remote repository whose upstream is your JFrog registry. Credentials go in Secret Manager.</p>
+<pre><code>gcloud artifacts repositories create jfrog-remote \
+  --project=my-app-prod --location=asia-southeast1 \
+  --repository-format=docker --mode=remote-repository \
+  --remote-docker-repo=https://MYCO.jfrog.io/artifactory/api/docker/docker-prod-local \
+  --remote-username=JFROG_READONLY_USER \
+  --remote-password-secret-version=projects/my-app-prod/secrets/jfrog-token/versions/1</code></pre>
+            <div class="note"><strong>Unsure</strong><span>The exact upstream URL format JFrog expects for a remote Docker client (the <code>/artifactory/api/docker/…</code> path vs. a repo subdomain) depends on your Artifactory reverse-proxy setup. I have not verified it; check with your JFrog admin.</span></div>
+          </div></div>
+        </div>
+      </div>
+
+      <div class="block" id="im-build">
+        <h3>3.2 Build workflow (CI → JFrog dev)</h3>
+        <p class="file">.github/workflows/build.yml</p>
+<pre><code>name: build
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  id-token: write          # OIDC for JFrog
+
+env:
+  JF_URL: ${{ vars.JF_URL }}               # https://myco.jfrog.io
+  REGISTRY: myco.jfrog.io
+  IMAGE: myco.jfrog.io/docker-dev-local/my-app
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+      version: ${{ steps.ver.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: ver
+        run: echo "version=$(date +%Y.%m.%d)-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - id: jf
+        uses: jfrog/setup-jfrog-cli@v4
+        with:
+          oidc-provider-name: github-oidc
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ steps.jf.outputs.oidc-user }}
+          password: ${{ steps.jf.outputs.oidc-token }}
+
+      - name: Test
+        run: make test
+
+      - name: Build and push image
+        id: push
+        run: |
+          TAG="${IMAGE}:${{ steps.ver.outputs.version }}"
+          docker build -t "$TAG" .
+          jf docker push "$TAG"
+          DIGEST=$(docker inspect --format '{{index .RepoDigests 0}}' "$TAG" | cut -d@ -f2)
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+
+      - name: Package function and static site
+        run: |
+          V=${{ steps.ver.outputs.version }}
+          (cd function &amp;&amp; zip -r ../function-$V.zip .)
+          (cd web &amp;&amp; npm ci &amp;&amp; npm run build &amp;&amp; tar -czf ../web-$V.tgz -C dist .)
+          jf rt upload "function-$V.zip" "generic-releases-local/my-app/$V/"
+          jf rt upload "web-$V.tgz"      "generic-releases-local/my-app/$V/"
+
+  cd:
+    needs: build
+    uses: ./.github/workflows/pipeline.yml
+    with:
+      version: ${{ needs.build.outputs.version }}
+      digest:  ${{ needs.build.outputs.digest }}
+    secrets: inherit</code></pre>
+        <p class="muted">setup-jfrog-cli sets the build name and number from the workflow and publishes build info to Artifactory automatically when the workflow ends, which links the image to this run.</p>
+      </div>
+
+      <div class="block" id="im-deploy">
+        <h3>3.3 Reusable deploy workflow (one environment, all targets)</h3>
+        <p class="file">.github/workflows/deploy.yml</p>
+<pre><code>name: deploy
+on:
+  workflow_call:
+    inputs:
+      environment: { type: string, required: true }
+      version:     { type: string, required: true }
+      digest:      { type: string, required: true }
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}       # gates + env vars apply here
+    concurrency: deploy-${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      V: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.DEPLOY_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - uses: jfrog/setup-jfrog-cli@v4
+        env: { JF_URL: "${{ vars.JF_URL }}" }
+        with: { oidc-provider-name: github-oidc }
+
+      # ---------- GKE ----------
+      - uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ vars.GKE_CLUSTER }}
+          location: ${{ vars.GCP_REGION }}
+      - name: Deploy to GKE
+        run: |
+          cd k8s/overlays/${{ inputs.environment }}
+          kustomize edit set image my-app=myco.jfrog.io/${{ vars.JF_DOCKER_REPO }}/my-app@${{ inputs.digest }}
+          kustomize build . | kubectl apply -f -
+          kubectl rollout status deployment/my-app --timeout=5m
+
+      # ---------- Cloud Run (via AR remote repo) ----------
+      - name: Deploy to Cloud Run (no traffic)
+        run: |
+          IMG=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/jfrog-remote/my-app@${{ inputs.digest }}
+          gcloud run deploy my-app-api --image="$IMG" \
+            --region=${{ vars.GCP_REGION }} --no-traffic --tag=v-${GITHUB_RUN_NUMBER}
+      - name: Shift traffic
+        run: |
+          gcloud run services update-traffic my-app-api \
+            --region=${{ vars.GCP_REGION }} --to-tags=v-${GITHUB_RUN_NUMBER}=100
+
+      # ---------- Cloud Functions ----------
+      - name: Fetch function source
+        run: |
+          jf rt download "generic-releases-local/my-app/$V/function-$V.zip" fn.zip --flat
+          mkdir fn &amp;&amp; unzip -q fn.zip -d fn
+      - uses: google-github-actions/deploy-cloud-functions@v4
+        with:
+          name: my-app-events
+          runtime: python312
+          entry_point: handle
+          source_dir: fn
+          region: ${{ vars.GCP_REGION }}
+
+      # ---------- Cloud Storage ----------
+      - name: Publish static site
+        run: |
+          jf rt download "generic-releases-local/my-app/$V/web-$V.tgz" web.tgz --flat
+          mkdir site &amp;&amp; tar -xzf web.tgz -C site
+          gcloud storage rsync site gs://${{ vars.GCP_PROJECT_ID }}-web \
+            --recursive --delete-unmatched-destination-objects</code></pre>
+        <div class="note"><strong>Check before use</strong><span>I confirmed <code>auth@v3</code> and <code>deploy-cloud-functions@v4</code> from Google's README. I could not open the READMEs for <code>setup-gcloud</code> and <code>get-gke-credentials</code> in this session, so <code>@v2</code> for those is from memory; confirm the current major version. The Cloud Run steps use <code>gcloud</code> directly; flags <code>--no-traffic</code>, <code>--tag</code> and <code>--to-tags</code> are standard <code>gcloud run</code> flags.</span></div>
+      </div>
+
+      <div class="block" id="im-pipeline">
+        <h3>3.4 Promotion pipeline (dev → qa → prod)</h3>
+        <p class="file">.github/workflows/pipeline.yml</p>
+<pre><code>name: pipeline
+on:
+  workflow_call:
+    inputs:
+      version: { type: string, required: true }
+      digest:  { type: string, required: true }
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  dev:
+    uses: ./.github/workflows/deploy.yml
+    with: { environment: dev, version: "${{ inputs.version }}", digest: "${{ inputs.digest }}" }
+
+  promote-qa:
+    needs: dev
+    runs-on: ubuntu-latest
+    environment: qa                      # reviewer approval happens here
+    steps:
+      - uses: jfrog/setup-jfrog-cli@v4
+        env: { JF_URL: "${{ vars.JF_URL }}" }
+        with: { oidc-provider-name: github-oidc }
+      - run: |
+          jf rt docker-promote my-app docker-dev-local docker-qa-local \
+            --source-tag=${{ inputs.version }} --copy
+
+  qa:
+    needs: promote-qa
+    uses: ./.github/workflows/deploy.yml
+    with: { environment: qa, version: "${{ inputs.version }}", digest: "${{ inputs.digest }}" }
+
+  promote-prod:
+    needs: qa
+    runs-on: ubuntu-latest
+    environment: prod                    # reviewers + no self-review + main only
+    steps:
+      - uses: jfrog/setup-jfrog-cli@v4
+        env: { JF_URL: "${{ vars.JF_URL }}" }
+        with: { oidc-provider-name: github-oidc }
+      - run: |
+          jf rt docker-promote my-app docker-qa-local docker-prod-local \
+            --source-tag=${{ inputs.version }} --copy
+
+  prod:
+    needs: promote-prod
+    uses: ./.github/workflows/deploy.yml
+    with: { environment: prod, version: "${{ inputs.version }}", digest: "${{ inputs.digest }}" }</code></pre>
+        <div class="tip"><b>Why the digest stays valid:</b> <code>docker-promote --copy</code> copies the same manifest to the next repo, so the digest from the build job is the digest prod deploys.</div>
+        <div class="block">
+          <h4>Two-repo variant</h4>
+          <p>Build pushes to <code>docker-nonprod-local</code>; dev and QA both deploy from it. Replace <code>promote-qa</code> with a step that records the QA approval as metadata, and promote once to prod:</p>
+<pre><code>  mark-qa:
+    needs: dev
+    runs-on: ubuntu-latest
+    environment: qa
+    steps:
+      - uses: jfrog/setup-jfrog-cli@v4
+        env: { JF_URL: "${{ vars.JF_URL }}" }
+        with: { oidc-provider-name: github-oidc }
+      - run: |
+          jf rt set-props "docker-nonprod-local/my-app/${{ inputs.version }}/" "qa.status=approved"
+
+  # ... qa deploy job as before ...
+
+  promote-prod:
+    needs: qa
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - uses: jfrog/setup-jfrog-cli@v4
+        env: { JF_URL: "${{ vars.JF_URL }}" }
+        with: { oidc-provider-name: github-oidc }
+      - run: |
+          jf rt docker-promote my-app docker-nonprod-local docker-prod-local \
+            --source-tag=${{ inputs.version }} --copy</code></pre>
+          <div class="note"><strong>Unsure</strong><span>I have not verified the exact path argument <code>jf rt set-props</code> needs for a Docker image folder in Artifactory. Check the JFrog CLI reference before using it.</span></div>
+        </div>
+        <div class="note"><strong>Unsure</strong><span>Here both <code>promote-prod</code> and the <code>prod</code> deploy job reference the <code>prod</code> environment. I have not verified whether GitHub asks for approval once or once per job in that case. If it asks twice, move the promotion step to the top of <code>deploy.yml</code> (guarded by <code>if: inputs.environment != 'dev'</code>) so each environment needs one approval.</span></div>
+      </div>
+
+      <div class="block" id="im-local">
+        <h3>3.5 Test it locally</h3>
+        <div class="prose"><p>You cannot fully reproduce GitHub Environments, approvals or OIDC on a laptop. Test the pipeline in four layers instead, from cheapest to most realistic.</p></div>
+        <div class="steps">
+          <div class="step"><div>
+            <h4>Lint the workflows</h4>
+            <p><code>actionlint</code> catches YAML, expression and shell errors before you push.</p>
+<pre><code>brew install actionlint    # or: go install github.com/rhysd/actionlint/cmd/actionlint@latest
+actionlint .github/workflows/*.yml</code></pre>
+          </div></div>
+
+          <div class="step"><div>
+            <h4>Run job logic with act</h4>
+            <p><code>act</code> runs workflow jobs in Docker. Pass variables and secrets from files. Its docs do not say whether OIDC or environment approvals work, so assume they do not and skip cloud auth steps when running locally.</p>
+<pre><code># .vars
+JF_URL=http://host.docker.internal:5000
+GCP_REGION=asia-southeast1
+
+act push -j build --var-file .vars --secret-file .secrets \
+  -P ubuntu-latest=catthehacker/ubuntu:full-latest</code></pre>
+<pre><code># In the workflow: skip real cloud auth under act
+- uses: google-github-actions/auth@v3
+  if: ${{ !env.ACT }}</code></pre>
+          </div></div>
+
+          <div class="step"><div>
+            <h4>Simulate promotion and GKE with kind + a local registry</h4>
+            <p>A plain Docker registry stands in for JFrog. Three repos (paths) stand in for dev / qa / prod, and three namespaces stand in for the three clusters.</p>
+<pre><code>docker run -d -p 5000:5000 --name registry registry:2
+kind create cluster --name cd-lab      # see kind's "local registry" guide to wire it in
+
+docker build -t localhost:5000/dev/my-app:1.0 . &amp;&amp; docker push localhost:5000/dev/my-app:1.0
+
+# "promote" = copy the same image to the next repo
+docker tag localhost:5000/dev/my-app:1.0 localhost:5000/qa/my-app:1.0
+docker push localhost:5000/qa/my-app:1.0
+
+# confirm the digest did not change between repos
+docker buildx imagetools inspect localhost:5000/dev/my-app:1.0 | grep Digest
+docker buildx imagetools inspect localhost:5000/qa/my-app:1.0  | grep Digest
+
+for ns in dev qa prod; do kubectl create ns $ns; done
+kubectl -n qa apply -k k8s/overlays/qa
+kubectl -n qa rollout status deploy/my-app</code></pre>
+            <p class="muted">If you want the real Artifactory UI and the <code>jf</code> commands, JFrog Container Registry (the free edition) ships as the <code>jfrog/artifactory-jcr</code> image; JFrog's docs give default login <code>admin</code> / <code>password</code> and point to their Docker Compose installer. I did not confirm ports or a one-line <code>docker run</code>.</p>
+          </div></div>
+
+          <div class="step"><div>
+            <h4>Exercise each serverless target locally</h4>
+            <ul>
+              <li><strong>Cloud Run:</strong> run the container the same way Cloud Run does, with the <code>PORT</code> variable set: <code>docker run -e PORT=8080 -p 8080:8080 localhost:5000/qa/my-app:1.0</code>.</li>
+              <li><strong>Cloud Functions:</strong> use Google's Functions Framework for your runtime, e.g. <code>pip install functions-framework</code> then <code>functions-framework --target=handle</code>.</li>
+              <li><strong>Cloud Storage:</strong> <code>fsouza/fake-gcs-server</code> emulates the GCS API in Docker for testing upload and sync scripts.</li>
+            </ul>
+            <div class="tip"><b>What "working" looks like:</b> same digest in every repo; rollout status reports success in each namespace; the container answers on <code>:8080</code>; the function responds to a local <code>curl</code>; the fake bucket contains exactly the files in the bundle after sync.</div>
+          </div></div>
+
+          <div class="step"><div>
+            <h4>Final check in a sandbox org</h4>
+            <p>Approvals, environment-scoped OIDC claims and WIF conditions only run on GitHub and GCP. Prove them once in a throwaway repo and sandbox GCP project, including a negative test: a job in <code>dev</code> must fail to authenticate to the prod provider.</p>
+          </div></div>
+        </div>
+      </div>
+
+      <div class="block" id="refs">
+        <h3>References</h3>
+        <ul class="refs">
+          <li><a href="https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments">GitHub Docs · Managing environments</a></li>
+          <li><a href="https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-in-jfrog">GitHub Docs · OIDC in JFrog</a></li>
+          <li><a href="https://github.com/jfrog/setup-jfrog-cli">jfrog/setup-jfrog-cli</a></li>
+          <li><a href="https://docs.jfrog.com/artifactory/docs/docker-advanced-operations">JFrog · Docker advanced operations (docker-promote)</a></li>
+          <li><a href="https://docs.jfrog.com/integrations/docs/jfrog-cli-command-reference">JFrog CLI command reference</a></li>
+          <li><a href="https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines">Google Cloud · Workload Identity Federation with deployment pipelines</a></li>
+          <li><a href="https://docs.cloud.google.com/run/docs/deploying">Google Cloud · Deploying container images to Cloud Run</a></li>
+          <li><a href="https://docs.cloud.google.com/artifact-registry/docs/repositories/remote-repo">Google Cloud · Artifact Registry remote repositories</a></li>
+          <li><a href="https://docs.cloud.google.com/artifact-registry/docs/repositories/connector-repo">Google Cloud · Artifact Registry connector repositories</a></li>
+          <li><a href="https://github.com/google-github-actions/deploy-cloud-functions">google-github-actions/deploy-cloud-functions</a></li>
+          <li><a href="https://docs.cloud.google.com/sdk/gcloud/reference/storage/rsync">gcloud storage rsync reference</a></li>
+          <li><a href="https://docs.jfrog.com/artifactory/docs/get-started-jfrog-container-registry">JFrog · Set up JFrog Container Registry</a></li>
+        </ul>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<footer>
+  <div class="wrap"><span>WQ Learn Book · Topic 01</span><span>Enterprise CD on GitHub</span></div>
+</footer>
+
+

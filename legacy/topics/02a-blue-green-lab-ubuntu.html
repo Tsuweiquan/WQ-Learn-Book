@@ -1,0 +1,678 @@
+<title>Blue-Green Lab on Ubuntu</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: WQ Learn Book topic page. Sky header, sticky TOC, single reading column; sections L1 → L2 → L3 colour-keyed like the home page. */
+:root{
+  --bg:#f3f9ff; --surface:#ffffff; --sky:#d6ecff; --sky-2:#b8dcff;
+  --ink:#0f2a44; --muted:#4b6684; --line:#cfe2f5; --accent:#1a7fd6; --accent-ink:#ffffff;
+  --l1:#3aa0ff; --l2:#22b8c9; --l3:#5b7cfa;
+  --code-bg:#eaf4ff; --code-ink:#12324f;
+  --good:#14845a; --bad:#c2410c; --warn-bg:#fff6e5; --warn-line:#f2c56b; --warn-ink:#7a4a00;
+  --display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+  --body:"Source Sans 3","Segoe UI",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0b1a2b; --surface:#11243a; --sky:#14314f; --sky-2:#1b4068;
+    --ink:#e4f1ff; --muted:#9db7d3; --line:#21405f; --accent:#5cb4ff; --accent-ink:#06192b;
+    --l1:#5cb4ff; --l2:#3fd0de; --l3:#8aa0ff; --code-bg:#0e2034; --code-ink:#d6e9ff;
+    --good:#4ade9a; --bad:#fb923c; --warn-bg:#2a2112; --warn-line:#7a5a1e; --warn-ink:#f7d58a; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0b1a2b; --surface:#11243a; --sky:#14314f; --sky-2:#1b4068;
+  --ink:#e4f1ff; --muted:#9db7d3; --line:#21405f; --accent:#5cb4ff; --accent-ink:#06192b;
+  --l1:#5cb4ff; --l2:#3fd0de; --l3:#8aa0ff; --code-bg:#0e2034; --code-ink:#d6e9ff;
+  --good:#4ade9a; --bad:#fb923c; --warn-bg:#2a2112; --warn-line:#7a5a1e; --warn-ink:#f7d58a; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.6}
+.wrap{max-width:920px;margin:0 auto;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px))}
+h1,h2,h3,h4{font-family:var(--display);line-height:1.2;text-wrap:balance;margin:0}
+p{margin:0}
+a{color:var(--accent)}
+a:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+code{font-family:var(--mono);font-size:.84em;background:var(--code-bg);padding:1px 5px;border-radius:5px;overflow-wrap:anywhere}
+pre{margin:0;background:var(--code-bg);color:var(--code-ink);border:1px solid var(--line);border-radius:10px;padding:14px 16px;overflow-x:auto;font-family:var(--mono);font-size:13px;line-height:1.55}
+pre code{background:none;padding:0;font-size:inherit;overflow-wrap:normal}
+pre.mermaid{background:var(--surface);text-align:center}
+ul,ol{margin:0;padding-left:22px}
+li{margin:3px 0}
+
+.hero{background:linear-gradient(180deg,var(--sky) 0%,var(--bg) 100%);border-bottom:1px solid var(--line)}
+.hero .wrap{padding-block:40px 32px;display:grid;gap:12px}
+.crumb{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+.hero h1{font-size:clamp(32px,6vw,52px);font-weight:800;letter-spacing:-.02em}
+.lede{max-width:65ch;color:var(--muted);font-size:18px}
+.meta{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font-family:var(--mono);font-size:12px;padding:4px 10px;border-radius:999px;background:var(--surface);border:1px solid var(--line);color:var(--muted)}
+
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top, 0px);z-index:10;background:var(--bg)}
+.toc-box{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 20px;display:grid;gap:10px}
+.toc-box h2{font-size:15px;font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.toc-cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.toc-cols ol{padding-left:0;list-style:none;display:grid;gap:3px}
+.toc-cols > div{min-width:0}
+.toc-cols h3{font-size:16px;margin-bottom:6px;display:flex;gap:8px;align-items:center}
+.toc-cols a{text-decoration:none;color:var(--ink);font-size:15px}
+.toc-cols a:hover{color:var(--accent);text-decoration:underline}
+.dot{width:10px;height:10px;border-radius:3px;display:inline-block;flex:none}
+.d1{background:var(--l1)} .d2{background:var(--l2)} .d3{background:var(--l3)}
+
+main .wrap{display:grid;gap:56px;padding-block:32px 72px}
+.part{display:grid;gap:28px;scroll-margin-top:16px}
+.part-head{display:grid;gap:6px;padding-bottom:12px;border-bottom:3px solid var(--l1)}
+.p2 .part-head{border-color:var(--l2)} .p3 .part-head{border-color:var(--l3)}
+.part-head .lvl{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.part-head h2{font-size:clamp(26px,4vw,34px);font-weight:700}
+.block{display:grid;gap:14px;scroll-margin-top:16px;min-width:0}
+.block > h3{font-size:22px;font-weight:700}
+.block h4{font-size:17px;font-weight:700}
+.prose{display:grid;gap:12px;max-width:72ch}
+.prose p,.prose li{color:var(--ink)}
+.muted{color:var(--muted)}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;display:grid;gap:8px;min-width:0}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.fit{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.fit .card h4{font-size:15px;font-family:var(--mono);font-weight:500;letter-spacing:.06em;text-transform:uppercase}
+.fit .yes h4{color:var(--good)} .fit .no h4{color:var(--bad)}
+
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:620px;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:10px 14px;border-top:1px solid var(--line)}
+thead th{border-top:0;background:var(--sky);font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500}
+td:first-child{font-weight:600}
+
+.note{border:1px solid var(--warn-line);background:var(--warn-bg);color:var(--warn-ink);border-radius:10px;padding:12px 14px;font-size:15px;display:grid;gap:4px}
+.note strong{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+.tip{border:1px solid var(--line);background:var(--sky);border-radius:10px;padding:12px 14px;font-size:15px}
+
+.steps{counter-reset:s;display:grid;gap:18px}
+.step{display:grid;grid-template-columns:36px 1fr;gap:14px}
+.step::before{counter-increment:s;content:counter(s);width:32px;height:32px;border-radius:50%;background:var(--l3);color:var(--accent-ink);display:grid;place-items:center;font-family:var(--display);font-weight:700}
+.step > div{display:grid;gap:10px;min-width:0}
+
+.file{font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:-8px}
+.refs li{margin:6px 0}
+footer .wrap{padding-block:24px 40px;border-top:1px solid var(--line);color:var(--muted);font-size:14px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+
+@media (max-width:720px){
+  .toc-cols,.grid2,.fit{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:no-preference){ html{scroll-behavior:smooth} }
+</style>
+<style>
+.bg-pill{font-family:var(--mono);font-size:12px;padding:2px 8px;border-radius:6px;border:1px solid var(--line);background:var(--surface)}
+.bg-pill.blue{color:var(--l1);border-color:var(--l1)} .bg-pill.green{color:var(--good);border-color:var(--good)}
+.crumb a{color:inherit}
+.check{display:grid;gap:6px;list-style:none;padding-left:0}
+.check li{display:grid;grid-template-columns:22px 1fr;gap:8px;align-items:start}
+.check li::before{content:"";width:16px;height:16px;margin-top:4px;border:2px solid var(--l3);border-radius:4px}
+.out{background:var(--surface);border-style:dashed;position:relative;padding-top:28px}
+.out::before{content:"Example output";position:absolute;top:8px;left:16px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+</style>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="crumb"><a href="https://claude.ai/artifact/AucD9a6ufg8rboVgDhPceN" target="_blank" rel="noopener">Topic 02 · Blue-Green</a> · Subtopic 02a · Hands-on lab</div>
+    <h1>Blue-Green Lab on Ubuntu</h1>
+    <p class="lede">Two hands-on tests on a single Ubuntu machine with kind. Lab 1 does blue-green with plain Kubernetes objects. Lab 2 does the same release with Argo Rollouts. Both run a live traffic generator so you can see the switch and confirm no requests fail.</p>
+    <div class="meta">
+      <span class="chip">Added 28 Oct 2026</span>
+      <span class="chip">Ubuntu 22.04 / 24.04</span>
+      <span class="chip">kind</span>
+      <span class="chip">Argo Rollouts</span>
+      <span class="chip">~45 min</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+
+    <nav class="toc-box" aria-label="Table of contents">
+      <h2>Table of contents</h2>
+      <div class="toc-cols">
+        <div>
+          <h3><span class="dot d1"></span><a href="#arch">1. Lab architecture</a></h3>
+          <ol>
+            <li><a href="#arch-host">1.1 The host</a></li>
+            <li><a href="#arch-l1">1.2 Lab 1 · without Argo Rollouts</a></li>
+            <li><a href="#arch-l2">1.3 Lab 2 · with Argo Rollouts</a></li>
+          </ol>
+        </div>
+        <div>
+          <h3><span class="dot d2"></span><a href="#theory">2. What the tests prove</a></h3>
+          <ol>
+            <li><a href="#th-goals">2.1 Test goals</a></li>
+            <li><a href="#th-measure">2.2 How we measure</a></li>
+            <li><a href="#th-pass">2.3 Pass criteria</a></li>
+          </ol>
+        </div>
+        <div>
+          <h3><span class="dot d3"></span><a href="#impl">3. Run the labs</a></h3>
+          <ol>
+            <li><a href="#im-setup">3.1 Prepare Ubuntu</a></li>
+            <li><a href="#im-l1">3.2 Lab 1 · Selector switch</a></li>
+            <li><a href="#im-l2">3.3 Lab 2 · Argo Rollouts</a></li>
+            <li><a href="#im-clean">3.4 Clean up</a></li>
+            <li><a href="#im-trouble">3.5 Troubleshooting</a></li>
+            <li><a href="#refs">References</a></li>
+          </ol>
+        </div>
+      </div>
+    </nav>
+
+    <!-- ===================== PART 1 ===================== -->
+    <section id="arch" class="part p1">
+      <div class="part-head">
+        <span class="lvl">Level 1 · High-level architecture</span>
+        <h2>1. Lab architecture</h2>
+      </div>
+
+      <div class="block" id="arch-host">
+        <h3>1.1 The host</h3>
+        <div class="prose">
+          <p>Everything runs on one Ubuntu machine (laptop, VM or cloud instance). <strong>kind</strong> ("Kubernetes in Docker") runs a full Kubernetes node as a Docker container, so you get a real API server, kube-proxy and Services without any cloud account.</p>
+          <p>The app is <code>hashicorp/http-echo</code>, a tiny web server that returns a fixed text. Blue returns <code>blue</code>, green returns <code>green</code>, so every response tells you which version served it. Both labs use the same app, so the only difference between them is the release mechanism.</p>
+        </div>
+<pre class="mermaid">
+flowchart LR
+  subgraph Ubuntu[Ubuntu host]
+    docker[Docker Engine]
+    subgraph kind[kind cluster 'bg-lab' · one Docker container]
+      api[API server · kube-proxy]
+      ns1[namespace lab1]
+      ns2[namespace lab2]
+      argo[namespace argo-rollouts<br/>Lab 2 only]
+    end
+    cli[kubectl · kubectl-argo-rollouts]
+  end
+  docker --> kind
+  cli --> api
+</pre>
+      </div>
+
+      <div class="block" id="arch-l1">
+        <h3>1.2 Lab 1 · without Argo Rollouts</h3>
+        <div class="prose"><p>Architecture A from Topic 02: two Deployments, a production Service and a preview Service. You do the switch yourself by patching the production Service selector. A tester pod inside the cluster sends a request every 0.2 seconds and logs which colour answered.</p></div>
+<pre class="mermaid">
+flowchart LR
+  tester[Pod tester<br/>curl loop] --> svc[Service my-app<br/>color=blue]
+  smoke[Smoke test pod] --> prev[Service my-app-preview<br/>color=green]
+  svc --> blue[Deployment my-app-blue<br/>text: blue · 3 pods]
+  prev --> green[Deployment my-app-green<br/>text: green · 3 pods]
+  you([You · kubectl patch]) -. switch selector .-> svc
+</pre>
+      </div>
+
+      <div class="block" id="arch-l2">
+        <h3>1.3 Lab 2 · with Argo Rollouts</h3>
+        <div class="prose"><p>Architecture C from Topic 02: one <code>Rollout</code> resource and two Services. You only change the app version and run <code>promote</code>; the controller creates the new ReplicaSet, wires up the preview Service, switches the active Service and scales the old version down.</p></div>
+<pre class="mermaid">
+flowchart LR
+  tester[Pod tester<br/>curl loop] --> act[Service my-app-active]
+  you([You · edit Rollout,<br/>then promote / abort]) --> ro[Rollout my-app<br/>blueGreen]
+  ctl[Argo Rollouts controller] -->|watches| ro
+  ctl -->|sets selectors| act
+  ctl -->|sets selectors| prev[Service my-app-preview]
+  act --> rs1[ReplicaSet rev 1 · blue]
+  prev --> rs2[ReplicaSet rev 2 · green]
+</pre>
+      </div>
+    </section>
+
+    <!-- ===================== PART 2 ===================== -->
+    <section id="theory" class="part p2">
+      <div class="part-head">
+        <span class="lvl">Level 2 · Theory</span>
+        <h2>2. What the tests prove</h2>
+      </div>
+
+      <div class="block" id="th-goals">
+        <h3>2.1 Test goals</h3>
+        <div class="tbl">
+          <table>
+            <thead><tr><th>Behaviour</th><th>Lab 1</th><th>Lab 2</th></tr></thead>
+            <tbody>
+              <tr><td>Green can be tested before users see it</td><td>Smoke test via <code>my-app-preview</code></td><td>Rollout pauses; test via <code>my-app-preview</code></td></tr>
+              <tr><td>Cutover is all-at-once</td><td>One selector patch</td><td><code>promote</code></td></tr>
+              <tr><td>No failed requests during cutover</td><td>Tester log</td><td>Tester log</td></tr>
+              <tr><td>Rollback is fast</td><td>Patch selector back</td><td><code>undo</code> after promotion</td></tr>
+              <tr><td>A bad release can be stopped before cutover</td><td>Simply don't switch</td><td><code>abort</code></td></tr>
+              <tr><td>Old version is cleaned up</td><td>You scale it to 0</td><td>Controller, after <code>scaleDownDelaySeconds</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="block" id="th-measure">
+        <h3>2.2 How we measure</h3>
+        <div class="prose">
+          <ul>
+            <li><strong>Traffic comes from a pod in the cluster</strong>, not from your terminal. <code>kubectl port-forward</code> to a Service picks one pod when it starts and keeps using it, so it would never show the switch.</li>
+            <li><strong>Each request opens a new connection</strong> (<code>curl</code> runs once per loop). This tests what new clients see. Long-lived connections behave differently: they stay on the old pods until closed, which these labs do not measure.</li>
+            <li><strong>Each log line is</strong> <code>time colour status</code>, or <code>ERR</code> if the request failed or timed out after 2 seconds. Counting <code>ERR</code> lines gives the failure count.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="block" id="th-pass">
+        <h3>2.3 Pass criteria</h3>
+        <ul class="check">
+          <li>Before cutover, every response is <code>blue 200</code>, while the preview Service already returns <code>green</code>.</li>
+          <li>After cutover, responses change to <code>green 200</code> within a few seconds.</li>
+          <li><code>ERR</code> count across the whole test is 0.</li>
+          <li>Rollback returns responses to the previous colour, again with 0 errors.</li>
+          <li>Lab 2 only: after <code>abort</code>, users never see the bad version.</li>
+        </ul>
+        <div class="note"><strong>Not proven here</strong><span>A one-node kind cluster has no real network between nodes, so endpoint updates propagate faster than on a multi-node GKE cluster. Passing here shows the mechanism works; it does not prove the same timing in production.</span></div>
+      </div>
+    </section>
+
+    <!-- ===================== PART 3 ===================== -->
+    <section id="impl" class="part p3">
+      <div class="part-head">
+        <span class="lvl">Level 3 · Implementation</span>
+        <h2>3. Run the labs</h2>
+      </div>
+
+      <div class="block" id="im-setup">
+        <h3>3.1 Prepare Ubuntu</h3>
+        <div class="prose"><p>Needs Ubuntu 22.04 or 24.04 on x86-64, about 4 GB free RAM, and internet access to Docker Hub and GitHub.</p></div>
+        <div class="steps">
+          <div class="step"><div>
+            <h4>Install Docker Engine</h4>
+            <p>From Docker's official Ubuntu instructions (apt repository method):</p>
+<pre><code>sudo apt update
+sudo apt install -y ca-certificates curl
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+sudo tee /etc/apt/sources.list.d/docker.sources &lt;&lt;EOF
+Types: deb
+URIs: https://download.docker.com/linux/ubuntu
+Suites: $(. /etc/os-release &amp;&amp; echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}")
+Components: stable
+Signed-By: /etc/apt/keyrings/docker.asc
+EOF
+
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+# run docker without sudo
+sudo usermod -aG docker $USER
+newgrp docker
+docker run hello-world</code></pre>
+            <div class="note"><strong>Check</strong><span>I could not reach docs.docker.com from my workspace to confirm the exact current text of the <code>.sources</code> file. If <code>apt update</code> complains about it, copy that block from Docker's page instead.</span></div>
+          </div></div>
+
+          <div class="step"><div>
+            <h4>Install kind and kubectl</h4>
+<pre><code># kind (binary from GitHub releases; v0.27.0 verified to exist, check for newer)
+curl -Lo ./kind https://github.com/kubernetes-sigs/kind/releases/download/v0.27.0/kind-linux-amd64
+chmod +x ./kind
+sudo mv ./kind /usr/local/bin/kind
+kind version
+
+# kubectl (latest stable, per kubernetes.io)
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+kubectl version --client</code></pre>
+          </div></div>
+
+          <div class="step"><div>
+            <h4>Create the cluster</h4>
+<pre><code>kind create cluster --name bg-lab
+kubectl cluster-info --context kind-bg-lab
+kubectl get nodes          # one node, STATUS Ready</code></pre>
+          </div></div>
+        </div>
+      </div>
+
+      <!-- ============ LAB 1 ============ -->
+      <div class="block" id="im-l1">
+        <h3>3.2 Lab 1 · Blue-green without Argo Rollouts</h3>
+        <div class="steps">
+          <div class="step"><div>
+            <h4>Deploy blue and green</h4>
+            <p class="file">lab1.yaml</p>
+<pre><code>apiVersion: v1
+kind: Namespace
+metadata: { name: lab1 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: my-app-blue, namespace: lab1 }
+spec:
+  replicas: 3
+  selector: { matchLabels: { app: my-app, color: blue } }
+  template:
+    metadata: { labels: { app: my-app, color: blue } }
+    spec:
+      containers:
+        - name: app
+          image: hashicorp/http-echo
+          args: ["-text=blue"]
+          ports: [{ containerPort: 5678 }]
+          readinessProbe: { httpGet: { path: /, port: 5678 }, periodSeconds: 2 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: my-app-green, namespace: lab1 }
+spec:
+  replicas: 3
+  selector: { matchLabels: { app: my-app, color: green } }
+  template:
+    metadata: { labels: { app: my-app, color: green } }
+    spec:
+      containers:
+        - name: app
+          image: hashicorp/http-echo
+          args: ["-text=green"]
+          ports: [{ containerPort: 5678 }]
+          readinessProbe: { httpGet: { path: /, port: 5678 }, periodSeconds: 2 }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: my-app, namespace: lab1 }          # production
+spec:
+  selector: { app: my-app, color: blue }
+  ports: [{ port: 80, targetPort: 5678 }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: my-app-preview, namespace: lab1 }  # idle colour
+spec:
+  selector: { app: my-app, color: green }
+  ports: [{ port: 80, targetPort: 5678 }]</code></pre>
+<pre><code>kubectl apply -f lab1.yaml
+kubectl -n lab1 rollout status deploy/my-app-blue
+kubectl -n lab1 rollout status deploy/my-app-green
+kubectl -n lab1 get endpoints my-app my-app-preview   # 3 IPs each, different sets</code></pre>
+          </div></div>
+
+          <div class="step"><div>
+            <h4>Start the traffic generator</h4>
+            <p>Leave this running in a second terminal for the rest of Lab 1.</p>
+<pre><code>kubectl -n lab1 run tester --image=curlimages/curl --restart=Never --command -- \
+  sh -c 'while true; do
+    r=$(curl -s -m 2 -w " %{http_code}" http://my-app) || r="ERR"
+    echo "$(date +%T) $r"; sleep 0.2; done'
+
+kubectl -n lab1 logs -f tester</code></pre>
+            <pre class="out"><code>06:10:01 blue 200
+06:10:01 blue 200
+06:10:02 blue 200</code></pre>
+            <p class="muted"><code>--command</code> matters: the curl image's entrypoint is <code>curl</code>, so without it <code>sh -c …</code> would be passed to curl as arguments.</p>
+          </div></div>
+
+          <div class="step"><div>
+            <h4>Smoke-test green through the preview Service</h4>
+<pre><code>kubectl -n lab1 run smoke --rm -i --restart=Never --image=curlimages/curl -- \
+  -s http://my-app-preview
+# expected: green</code></pre>
+            <p class="muted">The tester log should still show only <code>blue</code>: green is running but not serving users.</p>
+          </div></div>
+
+          <div class="step"><div>
+            <h4>Cut over to green</h4>
+<pre><code>kubectl -n lab1 patch service my-app \
+  -p '{"spec":{"selector":{"app":"my-app","color":"green"}}}'
+kubectl -n lab1 patch service my-app-preview \
+  -p '{"spec":{"selector":{"app":"my-app","color":"blue"}}}'</code></pre>
+            <pre class="out"><code>06:11:14 blue 200
+06:11:14 blue 200
+06:11:15 green 200
+06:11:15 green 200</code></pre>
+          </div></div>
+
+          <div class="step"><div>
+            <h4>Roll back, then forward again</h4>
+<pre><code># rollback: blue is still running, so this is instant
+kubectl -n lab1 patch service my-app \
+  -p '{"spec":{"selector":{"app":"my-app","color":"blue"}}}'
+
+# forward again
+kubectl -n lab1 patch service my-app \
+  -p '{"spec":{"selector":{"app":"my-app","color":"green"}}}'</code></pre>
+          </div></div>
+
+          <div class="step"><div>
+            <h4>Do the next release on the idle colour</h4>
+            <p>Green is live, so blue is now the idle slot. Ship "v3" to it, test, and switch, exactly as a real second release would work.</p>
+<pre><code>kubectl -n lab1 patch deploy my-app-blue --type=json \
+  -p '[{"op":"replace","path":"/spec/template/spec/containers/0/args","value":["-text=blue-v3"]}]'
+kubectl -n lab1 rollout status deploy/my-app-blue
+
+kubectl -n lab1 run smoke --rm -i --restart=Never --image=curlimages/curl -- \
+  -s http://my-app-preview          # expected: blue-v3, users still on green
+
+kubectl -n lab1 patch service my-app \
+  -p '{"spec":{"selector":{"app":"my-app","color":"blue"}}}'</code></pre>
+          </div></div>
+
+          <div class="step"><div>
+            <h4>Check the result</h4>
+<pre><code>kubectl -n lab1 logs tester | grep -c ERR                        # expect 0
+kubectl -n lab1 logs tester | awk '{print $2}' | uniq -c          # colour sequence</code></pre>
+            <pre class="out"><code>      0
+    412 blue
+    197 green
+     85 blue
+     63 green
+    140 blue-v3</code></pre>
+            <p class="muted">Your counts will differ; the sequence of colours and a 0 error count is what matters.</p>
+          </div></div>
+
+          <div class="step"><div>
+            <h4>Optional: a reusable cutover script</h4>
+            <p class="file">cutover.sh</p>
+<pre><code>#!/usr/bin/env bash
+set -euo pipefail
+NS=${NS:-lab1}
+TO=${1:?usage: cutover.sh blue|green}
+FROM=$([ "$TO" = green ] &amp;&amp; echo blue || echo green)
+
+kubectl -n "$NS" rollout status "deploy/my-app-$TO" --timeout=2m
+kubectl -n "$NS" patch service my-app-preview \
+  -p "{\"spec\":{\"selector\":{\"app\":\"my-app\",\"color\":\"$TO\"}}}"
+kubectl -n "$NS" run "smoke-$RANDOM" --rm -i --restart=Never \
+  --image=curlimages/curl -- -fsS http://my-app-preview
+
+kubectl -n "$NS" patch service my-app \
+  -p "{\"spec\":{\"selector\":{\"app\":\"my-app\",\"color\":\"$TO\"}}}"
+kubectl -n "$NS" patch service my-app-preview \
+  -p "{\"spec\":{\"selector\":{\"app\":\"my-app\",\"color\":\"$FROM\"}}}"
+echo "live: $TO   idle: $FROM"</code></pre>
+            <p class="muted"><code>curl -f</code> makes the smoke step fail on an HTTP error, and <code>set -e</code> then stops the script before the production switch.</p>
+          </div></div>
+
+          <div class="step"><div>
+            <h4>Finish Lab 1</h4>
+<pre><code>kubectl delete ns lab1</code></pre>
+          </div></div>
+        </div>
+      </div>
+
+      <!-- ============ LAB 2 ============ -->
+      <div class="block" id="im-l2">
+        <h3>3.3 Lab 2 · Blue-green with Argo Rollouts</h3>
+        <div class="steps">
+          <div class="step"><div>
+            <h4>Install the controller and kubectl plugin</h4>
+<pre><code>kubectl create namespace argo-rollouts
+kubectl apply -n argo-rollouts \
+  -f https://github.com/argoproj/argo-rollouts/releases/latest/download/install.yaml
+kubectl -n argo-rollouts rollout status deploy/argo-rollouts
+
+# plugin binary (Linux, no Homebrew needed)
+curl -LO https://github.com/argoproj/argo-rollouts/releases/latest/download/kubectl-argo-rollouts-linux-amd64
+chmod +x kubectl-argo-rollouts-linux-amd64
+sudo mv kubectl-argo-rollouts-linux-amd64 /usr/local/bin/kubectl-argo-rollouts
+kubectl argo rollouts version</code></pre>
+            <p class="muted">Both download URLs were checked and resolve on GitHub. kubectl finds any executable named <code>kubectl-&lt;name&gt;</code> on your PATH as a plugin, which is why the rename is needed.</p>
+          </div></div>
+
+          <div class="step"><div>
+            <h4>Deploy the Rollout (blue)</h4>
+            <p class="file">lab2.yaml</p>
+<pre><code>apiVersion: v1
+kind: Namespace
+metadata: { name: lab2 }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: my-app-active, namespace: lab2 }
+spec:
+  selector: { app: my-app }
+  ports: [{ port: 80, targetPort: 5678 }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: my-app-preview, namespace: lab2 }
+spec:
+  selector: { app: my-app }
+  ports: [{ port: 80, targetPort: 5678 }]
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata: { name: my-app, namespace: lab2 }
+spec:
+  replicas: 3
+  revisionHistoryLimit: 3
+  selector: { matchLabels: { app: my-app } }
+  template:
+    metadata: { labels: { app: my-app } }
+    spec:
+      containers:
+        - name: app
+          image: hashicorp/http-echo
+          args: ["-text=blue"]
+          ports: [{ containerPort: 5678 }]
+          readinessProbe: { httpGet: { path: /, port: 5678 }, periodSeconds: 2 }
+  strategy:
+    blueGreen:
+      activeService: my-app-active
+      previewService: my-app-preview
+      autoPromotionEnabled: false     # wait for a manual promote
+      scaleDownDelaySeconds: 60       # keep old version 60 s after switch</code></pre>
+<pre><code>kubectl apply -f lab2.yaml
+kubectl argo rollouts -n lab2 get rollout my-app      # Status: Healthy, 1 revision</code></pre>
+          </div></div>
+
+          <div class="step"><div>
+            <h4>Start the traffic generator</h4>
+<pre><code>kubectl -n lab2 run tester --image=curlimages/curl --restart=Never --command -- \
+  sh -c 'while true; do
+    r=$(curl -s -m 2 -w " %{http_code}" http://my-app-active) || r="ERR"
+    echo "$(date +%T) $r"; sleep 0.2; done'
+
+kubectl -n lab2 logs -f tester          # blue 200 ...</code></pre>
+          </div></div>
+
+          <div class="step"><div>
+            <h4>Release green and watch it pause</h4>
+            <p>Any change to the pod template creates a new revision. Here the "new version" is a new text argument. With a real app you would run <code>kubectl argo rollouts set image</code>.</p>
+<pre><code>kubectl -n lab2 patch rollout my-app --type=json \
+  -p '[{"op":"replace","path":"/spec/template/spec/containers/0/args","value":["-text=green"]}]'
+
+kubectl argo rollouts -n lab2 get rollout my-app --watch</code></pre>
+            <p>You should see two ReplicaSets: revision 1 marked <code>stable, active</code> and revision 2 marked <code>preview</code>, with the Rollout <code>Paused</code>. Press Ctrl+C to stop watching.</p>
+<pre><code>kubectl -n lab2 run smoke --rm -i --restart=Never --image=curlimages/curl -- \
+  -s http://my-app-preview            # green
+kubectl -n lab2 get svc my-app-active my-app-preview -o wide   # selectors now include a hash</code></pre>
+          </div></div>
+
+          <div class="step"><div>
+            <h4>Promote</h4>
+<pre><code>kubectl argo rollouts -n lab2 promote my-app
+kubectl argo rollouts -n lab2 get rollout my-app --watch</code></pre>
+            <p>The tester log changes from <code>blue 200</code> to <code>green 200</code>. Revision 1 stays up for about 60 seconds (<code>scaleDownDelaySeconds</code>), then scales to 0.</p>
+          </div></div>
+
+          <div class="step"><div>
+            <h4>Test abort: stop a bad release before users see it</h4>
+<pre><code>kubectl -n lab2 patch rollout my-app --type=json \
+  -p '[{"op":"replace","path":"/spec/template/spec/containers/0/args","value":["-text=bad-release"]}]'
+
+kubectl -n lab2 run smoke --rm -i --restart=Never --image=curlimages/curl -- \
+  -s http://my-app-preview            # bad-release: smoke test "fails" by eye
+
+kubectl argo rollouts -n lab2 abort my-app
+kubectl argo rollouts -n lab2 get rollout my-app</code></pre>
+            <p>The tester never shows <code>bad-release</code>; users stay on green. The aborted revision is scaled down and the Rollout reports <code>Degraded</code> because its spec still asks for the bad version. Put the spec back to the stable version to clear it:</p>
+<pre><code>kubectl -n lab2 patch rollout my-app --type=json \
+  -p '[{"op":"replace","path":"/spec/template/spec/containers/0/args","value":["-text=green"]}]'
+kubectl argo rollouts -n lab2 get rollout my-app      # Healthy again</code></pre>
+            <div class="note"><strong>Unsure</strong><span>I expect <code>Degraded</code> after abort and <code>Healthy</code> once the spec matches the stable revision again, but I have not run this exact sequence. Note what you actually see.</span></div>
+          </div></div>
+
+          <div class="step"><div>
+            <h4>Test rollback after promotion with undo</h4>
+<pre><code>kubectl argo rollouts -n lab2 undo my-app
+kubectl argo rollouts -n lab2 get rollout my-app --watch</code></pre>
+            <p><code>undo</code> sets the Rollout back to the previous revision's template (blue). Because this Rollout uses <code>autoPromotionEnabled: false</code>, it goes through preview and pauses again; run <code>promote</code> to complete the rollback.</p>
+            <div class="note"><strong>Unsure</strong><span>Whether <code>undo</code> on this Rollout returns to <code>blue</code> or to another earlier revision depends on the revision history after the abort step. Check which text the preview Service returns before you promote.</span></div>
+          </div></div>
+
+          <div class="step"><div>
+            <h4>Check the result</h4>
+<pre><code>kubectl -n lab2 logs tester | grep -c ERR                 # expect 0
+kubectl -n lab2 logs tester | awk '{print $2}' | uniq -c   # never shows bad-release</code></pre>
+          </div></div>
+        </div>
+      </div>
+
+      <div class="block" id="im-clean">
+        <h3>3.4 Clean up</h3>
+<pre><code>kind delete cluster --name bg-lab</code></pre>
+        <p class="muted">This removes the whole cluster, including Argo Rollouts. Docker, kind, kubectl and the plugin stay installed for the next lab.</p>
+      </div>
+
+      <div class="block" id="im-trouble">
+        <h3>3.5 Troubleshooting</h3>
+        <div class="tbl">
+          <table>
+            <thead><tr><th>Symptom</th><th>Likely cause</th><th>Fix</th></tr></thead>
+            <tbody>
+              <tr><td><code>permission denied … docker.sock</code></td><td>User not in the <code>docker</code> group yet</td><td>Run <code>newgrp docker</code> or log out and back in</td></tr>
+              <tr><td>Pods stuck in <code>ImagePullBackOff</code></td><td>No access to Docker Hub (proxy, firewall, rate limit)</td><td><code>kubectl -n lab1 describe pod …</code>; pull on the host and load with <code>kind load docker-image hashicorp/http-echo --name bg-lab</code></td></tr>
+              <tr><td>Pods stuck in <code>Pending</code></td><td>Not enough memory for the kind node</td><td>Free memory or reduce <code>replicas</code> to 2</td></tr>
+              <tr><td>Tester logs show <code>curl: option -c</code> style errors</td><td><code>--command</code> missing from <code>kubectl run</code></td><td>Delete the pod and re-run with <code>--command</code></td></tr>
+              <tr><td><code>kubectl argo rollouts</code>: unknown command</td><td>Plugin not on PATH or wrong name</td><td>Binary must be named <code>kubectl-argo-rollouts</code> in a PATH directory</td></tr>
+              <tr><td>Rollout never pauses</td><td><code>autoPromotionEnabled</code> missing (default is true)</td><td>Set it to <code>false</code></td></tr>
+              <tr><td>Some <code>ERR</code> lines around the switch</td><td>Timing on a slow machine, or pods removed too early</td><td>Check old pods were still Running at cutover; record it as a finding</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="block" id="refs">
+        <h3>References</h3>
+        <ul class="refs">
+          <li><a href="https://claude.ai/artifact/AucD9a6ufg8rboVgDhPceN">Topic 02 · Blue-Green Deployment in One Kubernetes Cluster</a></li>
+          <li><a href="https://kind.sigs.k8s.io/docs/user/quick-start/">kind · Quick start</a></li>
+          <li><a href="https://github.com/kubernetes-sigs/kind/releases">kind · Releases</a></li>
+          <li><a href="https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/">Kubernetes · Install kubectl on Linux</a></li>
+          <li><a href="https://docs.docker.com/engine/install/ubuntu/">Docker · Install Docker Engine on Ubuntu</a></li>
+          <li><a href="https://argo-rollouts.readthedocs.io/en/latest/installation/">Argo Rollouts · Installation</a></li>
+          <li><a href="https://argo-rollouts.readthedocs.io/en/latest/features/bluegreen/">Argo Rollouts · BlueGreen</a></li>
+          <li><a href="https://github.com/argoproj/argo-rollouts/releases">Argo Rollouts · Releases</a></li>
+        </ul>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<footer>
+  <div class="wrap"><span>WQ Learn Book · Subtopic 02a</span><span>Blue-Green Lab on Ubuntu</span></div>
+</footer>
+
+

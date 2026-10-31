@@ -1,0 +1,172 @@
+@import "tailwindcss";
+@import "@heroui/styles";
+@import "@fontsource-variable/bricolage-grotesque";
+@import "@fontsource-variable/source-sans-3";
+@import "@fontsource-variable/jetbrains-mono";
+
+/* Learn Book palette on top of HeroUI's variables. Unlayered, so it wins over HeroUI's theme layer. */
+:root {
+  --background: #f3f9ff;
+  --foreground: #0f2a44;
+  --surface: #ffffff;
+  --surface-foreground: var(--foreground);
+  --surface-secondary: #eaf4ff;
+  --surface-tertiary: #d6ecff;
+  --overlay: #ffffff;
+  --default: #e2eefa;
+  --muted: #4b6684;
+  --border: #cfe2f5;
+  --separator: #cfe2f5;
+  --accent: #1a7fd6;
+  --accent-foreground: #ffffff;
+  --link: var(--accent);
+  --radius: 0.75rem;
+
+  --sky: #d6ecff;
+  --sky-2: #b8dcff;
+  --l1: #3aa0ff;
+  --l2: #22b8c9;
+  --l3: #5b7cfa;
+  --code-bg: #eaf4ff;
+  --code-ink: #12324f;
+  --good: #14845a;
+  --bad: #c2410c;
+}
+
+.dark,
+[data-theme="dark"] {
+  --background: #0b1a2b;
+  --foreground: #e4f1ff;
+  --surface: #11243a;
+  --surface-secondary: #0e2034;
+  --surface-tertiary: #14314f;
+  --overlay: #11243a;
+  --default: #1b3550;
+  --muted: #9db7d3;
+  --border: #21405f;
+  --separator: #21405f;
+  --accent: #5cb4ff;
+  --accent-foreground: #06192b;
+
+  --sky: #14314f;
+  --sky-2: #1b4068;
+  --l1: #5cb4ff;
+  --l2: #3fd0de;
+  --l3: #8aa0ff;
+  --code-bg: #0e2034;
+  --code-ink: #d6e9ff;
+  --good: #4ade9a;
+  --bad: #fb923c;
+}
+
+@theme inline {
+  --font-sans: "Source Sans 3 Variable", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Bricolage Grotesque Variable", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --color-sky: var(--sky);
+  --color-sky-2: var(--sky-2);
+  --color-l1: var(--l1);
+  --color-l2: var(--l2);
+  --color-l3: var(--l3);
+  --color-code: var(--code-bg);
+  --color-code-ink: var(--code-ink);
+  --color-good: var(--good);
+  --color-bad: var(--bad);
+}
+
+@layer base {
+  html {
+    scroll-padding-top: 5rem;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+  body {
+    font-family: var(--font-sans);
+    font-size: 17px;
+    line-height: 1.6;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    line-height: 1.2;
+    text-wrap: balance;
+  }
+}
+
+/* Long-form topic content written in MDX. */
+@layer components {
+  .topic-prose {
+    display: grid;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+  .topic-prose :where(p, ul, ol) {
+    max-width: 72ch;
+  }
+  .topic-prose :where(ul, ol) {
+    padding-left: 1.4rem;
+  }
+  .topic-prose :where(ul) {
+    list-style: disc;
+  }
+  .topic-prose :where(ol) {
+    list-style: decimal;
+  }
+  .topic-prose :where(li) {
+    margin-block: 0.2rem;
+  }
+  .topic-prose :where(li > ul, li > ol) {
+    margin-top: 0.25rem;
+  }
+  .topic-prose :where(strong) {
+    font-weight: 650;
+  }
+  .topic-prose :where(h4) {
+    font-size: 1.0625rem;
+    font-weight: 700;
+  }
+  .checklist ul {
+    list-style: none;
+    padding-left: 0;
+    display: grid;
+    gap: 0.375rem;
+  }
+  .checklist li {
+    position: relative;
+    padding-left: 1.875rem;
+  }
+  .checklist li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.3em;
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid var(--l3);
+    border-radius: 4px;
+  }
+  .topic-prose :where(:not(pre) > code) {
+    font-family: var(--font-mono);
+    font-size: 0.84em;
+    background: var(--code-bg);
+    padding: 1px 5px;
+    border-radius: 5px;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* Shiki dual-theme output (defaultColor: false). */
+.shiki,
+.shiki span {
+  color: var(--shiki-light);
+}
+.dark .shiki,
+.dark .shiki span {
+  color: var(--shiki-dark);
+}

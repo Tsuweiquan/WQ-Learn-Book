@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>WQ Learn Book</title>
+    <meta name="description" content="Personal technical notebook: one page per topic, learned top-down from architecture to theory to runnable code." />
+    <script>
+      // Apply the saved theme before first paint. Mirrors HeroUI's useTheme (key "heroui-theme").
+      try {
+        var t = localStorage.getItem("heroui-theme") || "system";
+        if (t === "system") t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        document.documentElement.classList.add(t);
+        document.documentElement.setAttribute("data-theme", t);
+      } catch (e) {}
+    </script>
+  </head>
+  <body class="bg-background text-foreground">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,680 @@
+<title>Blue-Green in One Cluster</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: WQ Learn Book topic page. Sky header, sticky TOC, single reading column; sections L1 → L2 → L3 colour-keyed like the home page. */
+:root{
+  --bg:#f3f9ff; --surface:#ffffff; --sky:#d6ecff; --sky-2:#b8dcff;
+  --ink:#0f2a44; --muted:#4b6684; --line:#cfe2f5; --accent:#1a7fd6; --accent-ink:#ffffff;
+  --l1:#3aa0ff; --l2:#22b8c9; --l3:#5b7cfa;
+  --code-bg:#eaf4ff; --code-ink:#12324f;
+  --good:#14845a; --bad:#c2410c; --warn-bg:#fff6e5; --warn-line:#f2c56b; --warn-ink:#7a4a00;
+  --display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+  --body:"Source Sans 3","Segoe UI",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0b1a2b; --surface:#11243a; --sky:#14314f; --sky-2:#1b4068;
+    --ink:#e4f1ff; --muted:#9db7d3; --line:#21405f; --accent:#5cb4ff; --accent-ink:#06192b;
+    --l1:#5cb4ff; --l2:#3fd0de; --l3:#8aa0ff; --code-bg:#0e2034; --code-ink:#d6e9ff;
+    --good:#4ade9a; --bad:#fb923c; --warn-bg:#2a2112; --warn-line:#7a5a1e; --warn-ink:#f7d58a; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0b1a2b; --surface:#11243a; --sky:#14314f; --sky-2:#1b4068;
+  --ink:#e4f1ff; --muted:#9db7d3; --line:#21405f; --accent:#5cb4ff; --accent-ink:#06192b;
+  --l1:#5cb4ff; --l2:#3fd0de; --l3:#8aa0ff; --code-bg:#0e2034; --code-ink:#d6e9ff;
+  --good:#4ade9a; --bad:#fb923c; --warn-bg:#2a2112; --warn-line:#7a5a1e; --warn-ink:#f7d58a; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.6}
+.wrap{max-width:920px;margin:0 auto;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px))}
+h1,h2,h3,h4{font-family:var(--display);line-height:1.2;text-wrap:balance;margin:0}
+p{margin:0}
+a{color:var(--accent)}
+a:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+code{font-family:var(--mono);font-size:.84em;background:var(--code-bg);padding:1px 5px;border-radius:5px;overflow-wrap:anywhere}
+pre{margin:0;background:var(--code-bg);color:var(--code-ink);border:1px solid var(--line);border-radius:10px;padding:14px 16px;overflow-x:auto;font-family:var(--mono);font-size:13px;line-height:1.55}
+pre code{background:none;padding:0;font-size:inherit;overflow-wrap:normal}
+pre.mermaid{background:var(--surface);text-align:center}
+ul,ol{margin:0;padding-left:22px}
+li{margin:3px 0}
+
+.hero{background:linear-gradient(180deg,var(--sky) 0%,var(--bg) 100%);border-bottom:1px solid var(--line)}
+.hero .wrap{padding-block:40px 32px;display:grid;gap:12px}
+.crumb{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+.hero h1{font-size:clamp(32px,6vw,52px);font-weight:800;letter-spacing:-.02em}
+.lede{max-width:65ch;color:var(--muted);font-size:18px}
+.meta{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font-family:var(--mono);font-size:12px;padding:4px 10px;border-radius:999px;background:var(--surface);border:1px solid var(--line);color:var(--muted)}
+
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top, 0px);z-index:10;background:var(--bg)}
+.toc-box{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 20px;display:grid;gap:10px}
+.toc-box h2{font-size:15px;font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.toc-cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.toc-cols ol{padding-left:0;list-style:none;display:grid;gap:3px}
+.toc-cols > div{min-width:0}
+.toc-cols h3{font-size:16px;margin-bottom:6px;display:flex;gap:8px;align-items:center}
+.toc-cols a{text-decoration:none;color:var(--ink);font-size:15px}
+.toc-cols a:hover{color:var(--accent);text-decoration:underline}
+.dot{width:10px;height:10px;border-radius:3px;display:inline-block;flex:none}
+.d1{background:var(--l1)} .d2{background:var(--l2)} .d3{background:var(--l3)}
+
+main .wrap{display:grid;gap:56px;padding-block:32px 72px}
+.part{display:grid;gap:28px;scroll-margin-top:16px}
+.part-head{display:grid;gap:6px;padding-bottom:12px;border-bottom:3px solid var(--l1)}
+.p2 .part-head{border-color:var(--l2)} .p3 .part-head{border-color:var(--l3)}
+.part-head .lvl{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.part-head h2{font-size:clamp(26px,4vw,34px);font-weight:700}
+.block{display:grid;gap:14px;scroll-margin-top:16px;min-width:0}
+.block > h3{font-size:22px;font-weight:700}
+.block h4{font-size:17px;font-weight:700}
+.prose{display:grid;gap:12px;max-width:72ch}
+.prose p,.prose li{color:var(--ink)}
+.muted{color:var(--muted)}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;display:grid;gap:8px;min-width:0}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.fit{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.fit .card h4{font-size:15px;font-family:var(--mono);font-weight:500;letter-spacing:.06em;text-transform:uppercase}
+.fit .yes h4{color:var(--good)} .fit .no h4{color:var(--bad)}
+
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:620px;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:10px 14px;border-top:1px solid var(--line)}
+thead th{border-top:0;background:var(--sky);font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500}
+td:first-child{font-weight:600}
+
+.note{border:1px solid var(--warn-line);background:var(--warn-bg);color:var(--warn-ink);border-radius:10px;padding:12px 14px;font-size:15px;display:grid;gap:4px}
+.note strong{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+.tip{border:1px solid var(--line);background:var(--sky);border-radius:10px;padding:12px 14px;font-size:15px}
+
+.steps{counter-reset:s;display:grid;gap:18px}
+.step{display:grid;grid-template-columns:36px 1fr;gap:14px}
+.step::before{counter-increment:s;content:counter(s);width:32px;height:32px;border-radius:50%;background:var(--l3);color:var(--accent-ink);display:grid;place-items:center;font-family:var(--display);font-weight:700}
+.step > div{display:grid;gap:10px;min-width:0}
+
+.file{font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:-8px}
+.refs li{margin:6px 0}
+footer .wrap{padding-block:24px 40px;border-top:1px solid var(--line);color:var(--muted);font-size:14px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+
+@media (max-width:720px){
+  .toc-cols,.grid2,.fit{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:no-preference){ html{scroll-behavior:smooth} }
+</style>
+<style>
+.bg-pill{font-family:var(--mono);font-size:12px;padding:2px 8px;border-radius:6px;border:1px solid var(--line);background:var(--surface)}
+.bg-pill.blue{color:var(--l1);border-color:var(--l1)} .bg-pill.green{color:var(--good);border-color:var(--good)}
+</style>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="crumb">WQ Learn Book · Topic 02 · Release strategies</div>
+    <h1>Blue-Green Deployment in One Kubernetes Cluster</h1>
+    <p class="lede">Run two complete versions of one production application side by side in the same cluster, verify the new one privately, then move all traffic in one switch, with the old version kept warm for instant rollback.</p>
+    <div class="meta">
+      <span class="chip">Added 28 Oct 2026</span>
+      <span class="chip">Kubernetes</span>
+      <span class="chip">Gateway API</span>
+      <span class="chip">Argo Rollouts</span>
+      <span class="chip">GKE</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+
+    <nav class="toc-box" aria-label="Table of contents">
+      <h2>Table of contents</h2>
+      <div class="toc-cols">
+        <div>
+          <h3><span class="dot d1"></span><a href="#arch">1. Architecture</a></h3>
+          <ol>
+            <li><a href="#arch-scenario">1.1 The scenario</a></li>
+            <li><a href="#arch-a">1.2 A · Service selector switch</a></li>
+            <li><a href="#arch-b">1.3 B · Gateway API route switch</a></li>
+            <li><a href="#arch-c">1.4 C · Argo Rollouts controller</a></li>
+            <li><a href="#arch-compare">1.5 Choosing between them</a></li>
+          </ol>
+        </div>
+        <div>
+          <h3><span class="dot d2"></span><a href="#theory">2. Theory</a></h3>
+          <ol>
+            <li><a href="#th-what">2.1 What blue-green is</a></li>
+            <li><a href="#th-vs">2.2 Versus rolling and canary</a></li>
+            <li><a href="#th-traffic">2.3 How the switch moves traffic</a></li>
+            <li><a href="#th-hard">2.4 The hard parts</a></li>
+            <li><a href="#th-problems">2.5 Problems it solves</a></li>
+            <li><a href="#th-proscons">2.6 Pros and cons</a></li>
+          </ol>
+        </div>
+        <div>
+          <h3><span class="dot d3"></span><a href="#impl">3. Implementation</a></h3>
+          <ol>
+            <li><a href="#im-a">3.1 A · Selector switch</a></li>
+            <li><a href="#im-b">3.2 B · Gateway API</a></li>
+            <li><a href="#im-c">3.3 C · Argo Rollouts</a></li>
+            <li><a href="#im-pipeline">3.4 Wiring into the CD pipeline</a></li>
+            <li><a href="#im-local">3.5 Test it locally</a></li>
+            <li><a href="#refs">References</a></li>
+          </ol>
+        </div>
+      </div>
+    </nav>
+
+    <div class="tip"><b>Hands-on lab:</b> <a href="https://claude.ai/artifact/89hTszK8zYGTd6MdWpk3gb" target="_blank" rel="noopener">Subtopic 02a · Blue-Green Lab on Ubuntu</a> walks through Architecture A and Architecture C step by step on a single Ubuntu machine.</div>
+
+    <!-- ===================== PART 1 ===================== -->
+    <section id="arch" class="part p1">
+      <div class="part-head">
+        <span class="lvl">Level 1 · High-level architecture</span>
+        <h2>1. Architecture examples</h2>
+      </div>
+
+      <div class="block" id="arch-scenario">
+        <h3>1.1 The scenario</h3>
+        <div class="prose">
+          <p>One production application, one Kubernetes cluster (for example a GKE cluster in the prod project from <a href="https://claude.ai/artifact/Um7xgxrVA8nsh5YpUrfCex" target="_blank" rel="noopener">Topic 01</a>). The current version is <span class="bg-pill blue">blue</span> and serves all users. The new version is <span class="bg-pill green">green</span>.</p>
+          <ul>
+            <li>Both versions run at the same time, each at full or near-full capacity.</li>
+            <li>Green can be reached privately (preview) before any user sees it.</li>
+            <li>Cutover moves 100% of traffic at once. Rollback moves it back at once.</li>
+            <li>Blue stays running for a while after cutover, then is scaled down.</li>
+          </ul>
+          <p>The three architectures differ in <strong>where the switch lives</strong>: the Kubernetes Service, the Gateway route, or a controller that does it for you.</p>
+        </div>
+      </div>
+
+      <div class="block" id="arch-a">
+        <h3>1.2 Architecture A · Service selector switch (native Kubernetes)</h3>
+        <div class="prose">
+          <p>Two Deployments, each labelled with its colour. One production Service selects pods by <code>color</code>. Cutover is a single patch that changes the Service selector from <code>blue</code> to <code>green</code>. A second Service always points at the idle colour for preview testing.</p>
+        </div>
+<pre class="mermaid">
+flowchart LR
+  users([Users]) --> ing[Ingress / Gateway<br/>host: app.example.com]
+  ing --> svc[Service my-app<br/>selector: color=blue]
+  svc --> blue[Deployment my-app-blue<br/>v1 · 4 pods]
+  qa([QA / smoke tests]) --> prev[Service my-app-preview<br/>selector: color=green]
+  prev --> green[Deployment my-app-green<br/>v2 · 4 pods]
+  svc -. cutover: patch selector to green .-> green
+</pre>
+        <div class="fit">
+          <div class="card yes"><h4>Fits when</h4><ul><li>You want no extra tooling</li><li>The team is learning the pattern</li><li>Traffic is plain HTTP or TCP behind a Service</li></ul></div>
+          <div class="card no"><h4>Watch out for</h4><ul><li>The switch is a manual or scripted <code>kubectl patch</code>; no built-in checks</li><li>Existing long-lived connections stay on blue until they close</li><li>Only all-or-nothing; no gradual option</li></ul></div>
+        </div>
+      </div>
+
+      <div class="block" id="arch-b">
+        <h3>1.3 Architecture B · Gateway API route switch</h3>
+        <div class="prose">
+          <p>Each colour gets its own Deployment and its own Service. An <code>HTTPRoute</code> sends production traffic to both Services with weights: <code>blue: 100, green: 0</code>. Cutover changes the weights to <code>0 / 100</code>. A second rule (a preview hostname or a header such as <code>x-preview: green</code>) always reaches green, so testers can use the real production entry point before cutover.</p>
+        </div>
+<pre class="mermaid">
+flowchart LR
+  users([Users]) --> gw[Gateway<br/>e.g. gke-l7-regional-external-managed]
+  qa([Testers<br/>header x-preview: green]) --> gw
+  gw --> rt[HTTPRoute my-app]
+  rt -->|weight 100| sb[Service my-app-blue]
+  rt -->|weight 0| sg[Service my-app-green]
+  rt -->|header match| sg
+  sb --> blue[Deployment blue · v1]
+  sg --> green[Deployment green · v2]
+</pre>
+        <div class="fit">
+          <div class="card yes"><h4>Fits when</h4><ul><li>You already use Gateway API (GKE Gateway, Envoy Gateway, Istio)</li><li>You want preview on the real hostname via headers</li><li>You may later want canary (weights 90/10) with the same setup</li></ul></div>
+          <div class="card no"><h4>Watch out for</h4><ul><li>The load balancer applies route changes asynchronously; on a cloud LB this can take time</li><li>Support for weights and header matching depends on the GatewayClass</li><li>Still no automatic checks unless you script them</li></ul></div>
+        </div>
+      </div>
+
+      <div class="block" id="arch-c">
+        <h3>1.4 Architecture C · Argo Rollouts controller</h3>
+        <div class="prose">
+          <p>Replace the Deployment with an Argo Rollouts <code>Rollout</code> resource using the <code>blueGreen</code> strategy. You declare an active Service and a preview Service. When the image changes, the controller creates the new ReplicaSet, points the preview Service at it, optionally runs analysis (smoke tests, metrics), waits for promotion, switches the active Service, and scales the old ReplicaSet down after a delay.</p>
+        </div>
+<pre class="mermaid">
+flowchart LR
+  ci[CD pipeline<br/>set new image] --> ro[Rollout my-app<br/>strategy: blueGreen]
+  ctl[Argo Rollouts controller] -->|manages| ro
+  ro --> rsb[ReplicaSet v1<br/>active]
+  ro --> rsg[ReplicaSet v2<br/>preview]
+  act[Service my-app-active] --> rsb
+  pre[Service my-app-preview] --> rsg
+  ctl -->|prePromotionAnalysis| an[AnalysisRun<br/>smoke test / metrics]
+  an -->|pass + promote| ctl
+  ctl -. switch active selector .-> rsg
+</pre>
+        <div class="fit">
+          <div class="card yes"><h4>Fits when</h4><ul><li>Production, repeatable releases with an audit trail</li><li>You want automatic gating and abort on failed checks</li><li>You use Argo CD or another GitOps tool (the Rollout is just YAML)</li></ul></div>
+          <div class="card no"><h4>Watch out for</h4><ul><li>A controller and CRDs to install and upgrade</li><li>Teams must learn <code>Rollout</code> instead of <code>Deployment</code></li><li>Some tooling expects Deployments and needs adjusting</li></ul></div>
+        </div>
+      </div>
+
+      <div class="block" id="arch-compare">
+        <h3>1.5 Choosing between them</h3>
+        <div class="tbl">
+          <table>
+            <thead><tr><th>Concern</th><th>A · Selector switch</th><th>B · Gateway route</th><th>C · Argo Rollouts</th></tr></thead>
+            <tbody>
+              <tr><td>Where the switch lives</td><td>Service selector</td><td>HTTPRoute weights</td><td>Service selectors, changed by the controller</td></tr>
+              <tr><td>Extra components</td><td>None</td><td>Gateway API implementation</td><td>Rollouts controller + CRDs</td></tr>
+              <tr><td>Preview on real hostname</td><td>No (separate Service)</td><td>Yes (header or host rule)</td><td>Via preview Service; combine with B for hostname preview</td></tr>
+              <tr><td>Automated checks and abort</td><td>Scripted by you</td><td>Scripted by you</td><td>Built-in (AnalysisTemplates)</td></tr>
+              <tr><td>Old version cleanup</td><td>Manual</td><td>Manual</td><td>Automatic after <code>scaleDownDelaySeconds</code></td></tr>
+              <tr><td>Path to canary later</td><td>No</td><td>Yes, change weights</td><td>Yes, switch strategy to canary</td></tr>
+              <tr><td>Recommended for</td><td>Learning, simple apps</td><td>Teams already on Gateway API</td><td>Production default</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="muted">Other tools implement the same pattern, for example Flagger or a service mesh such as Istio. They are not covered here.</p>
+      </div>
+    </section>
+
+    <!-- ===================== PART 2 ===================== -->
+    <section id="theory" class="part p2">
+      <div class="part-head">
+        <span class="lvl">Level 2 · Theory</span>
+        <h2>2. Theory</h2>
+      </div>
+
+      <div class="block" id="th-what">
+        <h3>2.1 What blue-green deployment is</h3>
+        <div class="prose">
+          <p>Blue-green keeps <strong>two production environments</strong>: one live, one idle. You deploy the new version to the idle one, test it there with production configuration, then <strong>switch the router</strong> so all traffic goes to it. The old environment stays ready, so rollback is the same switch in reverse.</p>
+          <p>Doing this inside <strong>one cluster</strong> means the "environments" are two sets of pods, not two clusters. That keeps cost and complexity down, but both colours share the cluster, its nodes, its config objects and its downstream dependencies (database, queues, caches). Most of the difficulty comes from that sharing.</p>
+        </div>
+      </div>
+
+      <div class="block" id="th-vs">
+        <h3>2.2 Versus rolling update and canary</h3>
+        <div class="tbl">
+          <table>
+            <thead><tr><th>Strategy</th><th>How traffic moves</th><th>Versions live at once</th><th>Rollback</th><th>Extra capacity</th></tr></thead>
+            <tbody>
+              <tr><td>Rolling (Kubernetes default)</td><td>Pods replaced in batches; users hit old and new during rollout</td><td>Both, mixed</td><td>Another rolling update; takes as long as the rollout</td><td>Small (<code>maxSurge</code>)</td></tr>
+              <tr><td>Blue-green</td><td>All at once, at the switch</td><td>Both running, only one serving</td><td>Instant: switch back</td><td>Up to 2×</td></tr>
+              <tr><td>Canary</td><td>Small share first (e.g. 5%), increased in steps</td><td>Both serving</td><td>Set new share to 0%</td><td>Small to medium</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="prose"><p>The industry picks blue-green when a release must be <strong>verified before any user sees it</strong> and <strong>reversible in seconds</strong>, and when serving two versions to users at once is unacceptable (for example, an API contract change that clients must not see mixed). Canary is preferred when you would rather expose a small share of real users and watch metrics.</p></div>
+      </div>
+
+      <div class="block" id="th-traffic">
+        <h3>2.3 How the switch actually moves traffic</h3>
+        <div class="prose">
+          <ul>
+            <li><strong>Service selector (A, C):</strong> changing the selector updates the Service's endpoints. kube-proxy (or the dataplane in use) on every node then reprograms its rules. This is not instantaneous across nodes; Argo Rollouts' docs give this propagation delay as the reason old pods are kept for <code>scaleDownDelaySeconds</code> (default 30) after the switch.</li>
+            <li><strong>Existing connections:</strong> with a ClusterIP Service, connections already open to blue pods are not moved. HTTP keep-alive, gRPC and WebSocket clients stay on blue until the connection closes. This is why blue must not be scaled down immediately.</li>
+            <li><strong>Gateway weights (B):</strong> an L7 proxy picks the backend per request, so new requests follow the new weights once the proxy has the updated config. With a cloud load balancer (GKE Gateway), the change is pushed to Google's load balancer, which can take noticeably longer than an in-cluster proxy.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="block" id="th-hard">
+        <h3>2.4 The hard parts in a single cluster</h3>
+        <div class="grid2">
+          <div class="card"><h4>Database schema</h4><p class="muted">Blue and green share one database. Any schema change must work with both versions at once. The usual approach is expand/contract: add new columns or tables first (both versions work), cut over, then remove old ones in a later release.</p></div>
+          <div class="card"><h4>Background workers and consumers</h4><p class="muted">Green pods start consuming queues and running scheduled jobs as soon as they start, before cutover. Keep consumers off in the idle colour (scale them separately, or gate with a flag), or both versions process the same work.</p></div>
+          <div class="card"><h4>Capacity</h4><p class="muted">Green at full size doubles pod count during the release. The cluster needs node headroom or an autoscaler, and any ResourceQuota must allow it. Argo Rollouts' <code>previewReplicaCount</code> keeps green small until promotion, at the cost of a scale-up just before the switch.</p></div>
+          <div class="card"><h4>Config and secrets</h4><p class="muted">If both colours read the same ConfigMap and you edit it for green, blue changes too. Version config objects (e.g. <code>my-app-config-v2</code>) or generate them with a hash suffix, so each colour reads its own.</p></div>
+          <div class="card"><h4>Graceful shutdown</h4><p class="muted">When blue is finally scaled down, in-flight requests must finish. Use readiness probes, a <code>preStop</code> delay and a suitable <code>terminationGracePeriodSeconds</code>.</p></div>
+          <div class="card"><h4>Sessions and caches</h4><p class="muted">In-memory sessions are lost when users move to green. Keep session state external (Redis, a database, or stateless tokens). Shared caches must tolerate both versions' data formats.</p></div>
+        </div>
+        <div class="note"><strong>Limit of single-cluster blue-green</strong><span>Both colours depend on the same cluster. It protects you from a bad application release, not from a bad cluster upgrade, node pool problem or control-plane outage. Covering those needs blue-green across two clusters, which is a separate topic.</span></div>
+      </div>
+
+      <div class="block" id="th-problems">
+        <h3>2.5 Problems it solves</h3>
+        <div class="prose">
+          <ul>
+            <li><strong>Downtime during release:</strong> green is fully ready before it receives traffic.</li>
+            <li><strong>Slow rollback:</strong> rollback is a selector or weight change, not a redeploy.</li>
+            <li><strong>Mixed versions:</strong> users never hit v1 and v2 within the same rollout window, unlike a rolling update.</li>
+            <li><strong>Untested-in-prod surprises:</strong> green runs with production config, secrets, network policies and dependencies, and can be smoke-tested there before cutover.</li>
+            <li><strong>Release-time pressure:</strong> deploy and release are separate steps; you can deploy green early and switch at a planned time.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="block" id="th-proscons">
+        <h3>2.6 Pros and cons</h3>
+        <div class="fit">
+          <div class="card yes"><h4>Pros</h4><ul>
+            <li>Near-instant cutover and rollback</li>
+            <li>Verification in production before exposure</li>
+            <li>No mixed-version serving</li>
+            <li>Simple mental model: two colours, one switch</li>
+          </ul></div>
+          <div class="card no"><h4>Cons</h4><ul>
+            <li>Up to double compute during release</li>
+            <li>Schema and shared-state changes need care</li>
+            <li>All users move at once, so a bug missed in preview hits everyone</li>
+            <li>Workers, cron jobs and consumers need special handling</li>
+            <li>Single cluster is still a shared failure domain</li>
+          </ul></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== PART 3 ===================== -->
+    <section id="impl" class="part p3">
+      <div class="part-head">
+        <span class="lvl">Level 3 · Implementation</span>
+        <h2>3. Implementation</h2>
+      </div>
+      <p class="prose muted">Each example uses one app, <code>my-app</code>, in namespace <code>prod</code>. Images are placeholders; for the local test in 3.5 they are swapped for small demo images.</p>
+
+      <div class="block" id="im-a">
+        <h3>3.1 A · Service selector switch</h3>
+        <p class="file">k8s/bluegreen-a.yaml</p>
+<pre><code>apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app-blue
+  labels: { app: my-app, color: blue }
+spec:
+  replicas: 4
+  selector:
+    matchLabels: { app: my-app, color: blue }
+  template:
+    metadata:
+      labels: { app: my-app, color: blue }
+    spec:
+      terminationGracePeriodSeconds: 40
+      containers:
+        - name: app
+          image: REGISTRY/my-app:1.4.0
+          ports: [{ containerPort: 8080 }]
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+          lifecycle:
+            preStop:
+              exec: { command: ["sleep", "15"] }   # let endpoints update before shutdown
+---
+# my-app-green is identical except: name my-app-green, color: green, image 1.5.0
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-app            # production
+spec:
+  selector: { app: my-app, color: blue }
+  ports: [{ port: 80, targetPort: 8080 }]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-app-preview    # always the idle colour
+spec:
+  selector: { app: my-app, color: green }
+  ports: [{ port: 80, targetPort: 8080 }]</code></pre>
+        <p class="file">scripts/cutover.sh</p>
+<pre><code>#!/usr/bin/env bash
+set -euo pipefail
+NS=prod
+TO=${1:?usage: cutover.sh blue|green}
+FROM=$([ "$TO" = green ] &amp;&amp; echo blue || echo green)
+
+# 1. Target colour must be fully rolled out and ready
+kubectl -n $NS rollout status deploy/my-app-$TO --timeout=5m
+
+# 2. Smoke test through the preview Service (run from inside the cluster)
+kubectl -n $NS run smoke-$RANDOM --rm -i --restart=Never --image=curlimages/curl -- \
+  -fsS http://my-app-preview/healthz      # args go to the image's curl entrypoint
+
+# 3. Switch production, then point preview at the old colour
+kubectl -n $NS patch service my-app \
+  -p "{\"spec\":{\"selector\":{\"app\":\"my-app\",\"color\":\"$TO\"}}}"
+kubectl -n $NS patch service my-app-preview \
+  -p "{\"spec\":{\"selector\":{\"app\":\"my-app\",\"color\":\"$FROM\"}}}"
+
+echo "Live: $TO. Keep $FROM running until you are satisfied, then:"
+echo "  kubectl -n $NS scale deploy/my-app-$FROM --replicas=0"</code></pre>
+        <p class="muted">Rollback is <code>./cutover.sh blue</code> while blue is still running.</p>
+      </div>
+
+      <div class="block" id="im-b">
+        <h3>3.2 B · Gateway API route switch</h3>
+        <p>Deployments as in 3.1, but each colour has its own Service: <code>my-app-blue</code> and <code>my-app-green</code>.</p>
+        <p class="file">k8s/route.yaml</p>
+<pre><code>apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: my-app
+  namespace: prod
+spec:
+  parentRefs:
+    - name: prod-gateway
+  hostnames: ["app.example.com"]
+  rules:
+    # Preview: testers send header x-preview: green
+    - matches:
+        - headers:
+            - name: x-preview
+              value: green
+      backendRefs:
+        - name: my-app-green
+          port: 80
+    # Production: all users
+    - backendRefs:
+        - name: my-app-blue
+          port: 80
+          weight: 100
+        - name: my-app-green
+          port: 80
+          weight: 0</code></pre>
+        <p>Cutover is a change to the two weights (100/0 → 0/100), committed to Git and applied, or patched directly:</p>
+<pre><code>kubectl -n prod patch httproute my-app --type=json -p '[
+  {"op":"replace","path":"/spec/rules/1/backendRefs/0/weight","value":0},
+  {"op":"replace","path":"/spec/rules/1/backendRefs/1/weight","value":100}
+]'</code></pre>
+        <p class="muted">Weights are proportional, not percentages, and default to 1 if omitted, so always set both explicitly. The more specific header rule takes precedence over the catch-all rule under Gateway API's matching rules.</p>
+        <div class="note"><strong>Check before use</strong><span>Google's Gateway docs list the GKE GatewayClasses but did not state per class whether weighted backends and header matching are supported; check the "GatewayClass capabilities" page for your class.</span></div>
+      </div>
+
+      <div class="block" id="im-c">
+        <h3>3.3 C · Argo Rollouts</h3>
+        <p class="file">k8s/rollout.yaml</p>
+<pre><code>apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: my-app
+  namespace: prod
+spec:
+  replicas: 4
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels: { app: my-app }
+  template:
+    metadata:
+      labels: { app: my-app }
+    spec:
+      containers:
+        - name: app
+          image: REGISTRY/my-app:1.5.0
+          ports: [{ containerPort: 8080 }]
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+  strategy:
+    blueGreen:
+      activeService: my-app-active      # required; production traffic
+      previewService: my-app-preview    # optional; reaches the new version
+      autoPromotionEnabled: false       # default true; false = wait for promote
+      scaleDownDelaySeconds: 300        # default 30; keep old version warm 5 min
+      # previewReplicaCount: 1          # omit = preview gets 100% of replicas
+      prePromotionAnalysis:
+        templates:
+          - templateName: smoke-test
+---
+apiVersion: v1
+kind: Service
+metadata: { name: my-app-active, namespace: prod }
+spec:
+  selector: { app: my-app }             # controller adds a ReplicaSet hash to this
+  ports: [{ port: 80, targetPort: 8080 }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: my-app-preview, namespace: prod }
+spec:
+  selector: { app: my-app }
+  ports: [{ port: 80, targetPort: 8080 }]</code></pre>
+        <p class="file">k8s/analysis-smoke.yaml</p>
+<pre><code>apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: smoke-test
+  namespace: prod
+spec:
+  metrics:
+    - name: smoke
+      provider:
+        job:
+          spec:
+            backoffLimit: 0
+            template:
+              spec:
+                restartPolicy: Never
+                containers:
+                  - name: smoke
+                    image: curlimages/curl
+                    args: ["-fsS", "http://my-app-preview.prod/healthz"]</code></pre>
+        <div class="note"><strong>Unsure</strong><span>I verified the <code>blueGreen</code> fields and defaults above against the Argo Rollouts docs. I did not verify the Job-provider <code>AnalysisTemplate</code> schema in this session; check it against the Analysis section of the docs before use.</span></div>
+        <p>Release commands with the kubectl plugin:</p>
+<pre><code>kubectl argo rollouts -n prod set image my-app app=REGISTRY/my-app:1.6.0
+kubectl argo rollouts -n prod get rollout my-app --watch
+kubectl argo rollouts -n prod promote my-app      # cut over after checks
+kubectl argo rollouts -n prod abort my-app        # back out before promotion
+kubectl argo rollouts -n prod undo my-app         # roll back to previous revision</code></pre>
+      </div>
+
+      <div class="block" id="im-pipeline">
+        <h3>3.4 Wiring into the CD pipeline</h3>
+        <div class="prose">
+          <p>In the Topic 01 pipeline, the prod deploy job changes the image (by digest) and the release becomes two steps under the <code>prod</code> environment:</p>
+          <ol>
+            <li><strong>Deploy green:</strong> update the image on the idle colour (A/B) or on the Rollout (C). No user impact.</li>
+            <li><strong>Release:</strong> after preview checks pass, run the cutover: the selector patch (A), the weight change (B), or <code>kubectl argo rollouts promote</code> (C). This can be a separate job behind its own environment approval.</li>
+          </ol>
+          <p>With GitOps (Topic 01, Architecture B), the pipeline commits these changes to the config repo instead of calling <code>kubectl</code>. For C, Argo CD applies the new image and the Rollout pauses for promotion.</p>
+        </div>
+      </div>
+
+      <div class="block" id="im-local">
+        <h3>3.5 Test it locally with kind</h3>
+        <p class="muted">For a full step-by-step version on Ubuntu, see <a href="https://claude.ai/artifact/89hTszK8zYGTd6MdWpk3gb" target="_blank" rel="noopener">Subtopic 02a</a>.</p>
+        <div class="prose"><p>Goal: watch traffic flip from blue to green with zero failed requests, then flip back. Uses <code>hashicorp/http-echo</code>, which returns fixed text (default port 5678), so each colour is easy to tell apart.</p></div>
+        <div class="steps">
+          <div class="step"><div>
+            <h4>Create a cluster and two colours</h4>
+<pre><code>kind create cluster --name bg-lab
+kubectl create ns prod
+
+for c in blue green; do
+kubectl -n prod apply -f - &lt;&lt;EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: my-app-$c }
+spec:
+  replicas: 3
+  selector: { matchLabels: { app: my-app, color: $c } }
+  template:
+    metadata: { labels: { app: my-app, color: $c } }
+    spec:
+      containers:
+        - name: app
+          image: hashicorp/http-echo
+          args: ["-text=$c"]
+          ports: [{ containerPort: 5678 }]
+          readinessProbe: { httpGet: { path: /, port: 5678 } }
+EOF
+done
+
+kubectl -n prod create service clusterip my-app --tcp=80:5678
+kubectl -n prod patch service my-app \
+  -p '{"spec":{"selector":{"app":"my-app","color":"blue"}}}'</code></pre>
+          </div></div>
+
+          <div class="step"><div>
+            <h4>Generate traffic from inside the cluster</h4>
+            <p>Use a pod, not <code>kubectl port-forward</code>: port-forward to a Service connects to a single pod when it starts and will not follow the selector switch.</p>
+<pre><code>kubectl -n prod run tester --image=curlimages/curl --restart=Never --command -- \
+  sh -c 'while true; do
+    r=$(curl -s -m 2 -w " %{http_code}" http://my-app) || r="ERR"
+    echo "$(date +%T) $r"; sleep 0.2; done'
+
+kubectl -n prod logs -f tester</code></pre>
+          </div></div>
+
+          <div class="step"><div>
+            <h4>Cut over, then roll back</h4>
+<pre><code>kubectl -n prod patch service my-app \
+  -p '{"spec":{"selector":{"app":"my-app","color":"green"}}}'
+# logs switch from "blue 200" to "green 200"
+
+kubectl -n prod patch service my-app \
+  -p '{"spec":{"selector":{"app":"my-app","color":"blue"}}}'</code></pre>
+            <div class="tip"><b>What "working" looks like:</b> the log changes from <code>blue 200</code> to <code>green 200</code> within a few seconds, and no line shows <code>ERR</code> or a non-200 code. Because <code>curl</code> opens a new connection each time, this tests new connections only.</div>
+          </div></div>
+
+          <div class="step"><div>
+            <h4>Try B: Gateway API with Envoy Gateway</h4>
+            <p>Envoy Gateway is a Gateway API implementation that runs in kind. Its quickstart (v1.7.5 shown; check for the current release):</p>
+<pre><code>helm install eg oci://docker.io/envoyproxy/gateway-helm --version v1.7.5 \
+  -n envoy-gateway-system --create-namespace
+kubectl wait --timeout=5m -n envoy-gateway-system \
+  deployment/envoy-gateway --for=condition=Available
+kubectl apply -n default \
+  -f https://github.com/envoyproxy/gateway/releases/download/v1.7.5/quickstart.yaml</code></pre>
+            <p>The quickstart creates a Gateway named <code>eg</code>. Create Services <code>my-app-blue</code> and <code>my-app-green</code> (port 80 → 5678), apply the HTTPRoute from 3.2 with <code>parentRefs</code> pointing at <code>eg</code> in <code>default</code> and hostname <code>www.example.com</code>, then reach it locally as Envoy Gateway's docs show:</p>
+<pre><code>export ENVOY_SERVICE=$(kubectl get svc -n envoy-gateway-system \
+  --selector=gateway.envoyproxy.io/owning-gateway-namespace=default,gateway.envoyproxy.io/owning-gateway-name=eg \
+  -o jsonpath='{.items[0].metadata.name}')
+kubectl -n envoy-gateway-system port-forward service/${ENVOY_SERVICE} 8888:80 &amp;
+
+curl -s -H "Host: www.example.com" http://localhost:8888/                       # blue
+curl -s -H "Host: www.example.com" -H "x-preview: green" http://localhost:8888/  # green</code></pre>
+            <p class="muted">A route in another namespace (<code>prod</code>) attaching to the Gateway in <code>default</code> only works if the Gateway's listener allows routes from that namespace. If attachment fails, put the test resources in <code>default</code>. Port-forward is fine here: it targets the proxy, and the proxy does the routing.</p>
+          </div></div>
+
+          <div class="step"><div>
+            <h4>Try C: Argo Rollouts</h4>
+<pre><code>kubectl create namespace argo-rollouts
+kubectl apply -n argo-rollouts \
+  -f https://github.com/argoproj/argo-rollouts/releases/latest/download/install.yaml
+brew install argoproj/tap/kubectl-argo-rollouts</code></pre>
+            <p>Apply the Rollout from 3.3 with image <code>argoproj/rollouts-demo:blue</code>, container port <code>8080</code> and the analysis block removed. Then:</p>
+<pre><code>kubectl argo rollouts -n prod set image my-app app=argoproj/rollouts-demo:green
+kubectl argo rollouts -n prod get rollout my-app --watch   # paused, preview = green
+kubectl argo rollouts -n prod promote my-app               # active switches to green</code></pre>
+            <div class="tip"><b>What "working" looks like:</b> after <code>set image</code>, the Rollout shows a new revision as preview and pauses; <code>my-app-active</code> still serves blue. After <code>promote</code>, active serves green and the old ReplicaSet scales down after <code>scaleDownDelaySeconds</code>.</div>
+          </div></div>
+        </div>
+      </div>
+
+      <div class="block" id="refs">
+        <h3>References</h3>
+        <ul class="refs">
+          <li><a href="https://argo-rollouts.readthedocs.io/en/latest/features/bluegreen/">Argo Rollouts · BlueGreen deployment strategy</a></li>
+          <li><a href="https://argo-rollouts.readthedocs.io/en/latest/installation/">Argo Rollouts · Installation</a></li>
+          <li><a href="https://gateway-api.sigs.k8s.io/guides/traffic-splitting/">Gateway API · HTTP traffic splitting</a></li>
+          <li><a href="https://docs.cloud.google.com/kubernetes-engine/docs/concepts/gateway-api">Google Cloud · About Gateway API (GKE GatewayClasses)</a></li>
+          <li><a href="https://gateway.envoyproxy.io/_print/v1.7/install/">Envoy Gateway · Install</a></li>
+          <li><a href="https://gateway.envoyproxy.io/_print/v1.8/tasks/">Envoy Gateway · Tasks (quickstart testing)</a></li>
+        </ul>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<footer>
+  <div class="wrap"><span>WQ Learn Book · Topic 02</span><span>Blue-Green in One Cluster</span></div>
+</footer>
+
+
