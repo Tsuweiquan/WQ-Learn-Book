@@ -38,6 +38,7 @@ Check the v3 docs instead of relying on memory: https://heroui.com/react/llms.tx
 - `src/lib/topics.ts`: the topic registry and the frontmatter type.
 - `src/styles.css`: the Learn Book palette (it overrides HeroUI's variables for light and dark) and the prose styles.
 - `plugins/`: the remark plugin that turns ```` ```mermaid ```` fences into `<Mermaid>`, and the Shiki transformer for code-block titles.
+- `wq_practical_book/`: the user's hands-on setups (app code, Dockerfiles, Helm). `plugins/practical-book.ts` publishes every text file in it at `/practical/<path>` at build time, so a new file appears on its own. Markdown renders as a page and links between READMEs work. `target/`, `mvnw` and `mvnw.cmd` are left out. Everything in this folder is public once pushed.
 - `legacy/`: the old claude.ai artifact HTML, kept for reference only. Those artifacts are no longer updated.
 
 ## Writing a topic page

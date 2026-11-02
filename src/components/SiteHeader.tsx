@@ -41,7 +41,12 @@ export function SiteHeader() {
           <BookOpen className="text-accent" />
           WQ <span className="text-accent">Learn</span> Book
         </Link>
-        <ThemeSwitcher />
+        <div className="flex items-center gap-3">
+          <Link to="/practical" className="text-sm font-semibold text-foreground no-underline hover:text-accent">
+            Practical
+          </Link>
+          <ThemeSwitcher />
+        </div>
       </div>
     </header>
   );

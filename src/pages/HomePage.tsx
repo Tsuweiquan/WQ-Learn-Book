@@ -101,8 +101,9 @@ const RULES = [
 const SECTIONS = [
   { id: "method", label: "1. Learning method" },
   { id: "topics", label: "2. Topic index" },
-  { id: "template", label: "3. Page template" },
-  { id: "rules", label: "4. House rules" },
+  { id: "practical", label: "3. Practical book" },
+  { id: "template", label: "4. Page template" },
+  { id: "rules", label: "5. House rules" },
 ];
 
 function SectionHeading({ children }: { children: ReactNode }) {
@@ -218,8 +219,23 @@ export function HomePage() {
           </Card>
         </section>
 
+        <section id="practical" className="grid gap-5">
+          <SectionHeading>3. Practical book</SectionHeading>
+          <p className="max-w-[65ch] text-muted">
+            Hands-on setups: app code, Dockerfiles and their guides, shown straight from{" "}
+            <code className="font-mono text-sm">wq_practical_book/</code>.
+          </p>
+          <RouterLink
+            to="/practical"
+            className="flex items-center justify-between gap-3 rounded-2xl border border-border px-4.5 py-3.5 font-bold text-foreground no-underline hover:bg-sky"
+          >
+            Browse the Practical Book
+            <ChevronRight className="flex-none text-muted" />
+          </RouterLink>
+        </section>
+
         <section id="template" className="grid gap-5">
-          <SectionHeading>3. Page template</SectionHeading>
+          <SectionHeading>4. Page template</SectionHeading>
           <p className="max-w-[65ch] text-muted">
             Every topic page follows this exact outline, so any page can be skimmed the same way.
           </p>
@@ -239,7 +255,7 @@ export function HomePage() {
         </section>
 
         <section id="rules" className="grid gap-5">
-          <SectionHeading>4. House rules</SectionHeading>
+          <SectionHeading>5. House rules</SectionHeading>
           <div className="grid gap-3.5 md:grid-cols-2">
             {RULES.map((rule) => (
               <Card key={rule.title} variant="secondary" className="gap-1.5">

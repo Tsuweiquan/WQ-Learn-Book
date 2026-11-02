@@ -7,11 +7,13 @@ import remarkGfm from "remark-gfm";
 import remarkMdxFrontmatter from "remark-mdx-frontmatter";
 import { defineConfig } from "vite";
 
+import { practicalBook } from "./plugins/practical-book";
 import { remarkMermaid } from "./plugins/remark-mermaid";
 import { shikiCodeTitle } from "./plugins/shiki-code-title";
 
 export default defineConfig({
   plugins: [
+    practicalBook("wq_practical_book"),
     {
       enforce: "pre",
       ...mdx({

@@ -6,6 +6,7 @@ import { SiteHeader } from "./components/SiteHeader";
 import { ThemeProvider } from "./lib/theme";
 import { HomePage } from "./pages/HomePage";
 import { NotFoundPage } from "./pages/NotFoundPage";
+import { PracticalPage } from "./pages/PracticalPage";
 import { TopicPage } from "./pages/TopicPage";
 
 const USER_SCROLL_EVENTS = ["wheel", "touchstart", "keydown", "mousedown"] as const;
@@ -60,6 +61,7 @@ export function App() {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/topics/:slug" element={<TopicPage />} />
+            <Route path="/practical/*" element={<PracticalPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </div>
