@@ -241,7 +241,7 @@ Set `broker.rack` (for example `us-east-1d`) on every broker. When replicas are 
 On brokers, set `replica.selector.class=org.apache.kafka.common.replica.RackAwareReplicaSelector`. On consumers, set `client.rack` to match their zone. Consumers then read from a replica in their own zone instead of the leader, which cuts cross-zone traffic. By default consumers read only from the leader.
 </InfoCard>
 <InfoCard title="KRaft controller quorum">
-Kafka 4.x runs only in KRaft mode. ZooKeeper is gone. The metadata quorum needs a majority of controllers alive: "With 3 controllers, the cluster can tolerate 1 controller failure; with 5 controllers … 2." Put one controller per zone.
+Kafka 4.x runs only in KRaft mode. ZooKeeper is gone. The metadata quorum needs a majority of controllers alive: "With 3 controllers, the cluster can tolerate 1 controller failure; with 5 controllers … 2." Put one controller per zone. Sizing is covered in [2.6](#th-kraft).
 </InfoCard>
 <InfoCard title="Internal topic RF">
 `offsets.topic.replication.factor` and `transaction.state.log.replication.factor` both default to 3. Committed consumer offsets and transaction state need the same protection as your data. Don't lower them outside a lab.
@@ -266,7 +266,80 @@ Tiered storage (`remote.log.storage.system.enable`, default `false`) moves older
 
 </Block>
 
-<Block id="th-mm2" title="2.6 MirrorMaker 2: replication between clusters" toc="2.6 MirrorMaker 2">
+<Block id="th-kraft" title="2.6 KRaft controllers: Kafka's control plane" toc="2.6 KRaft controllers">
+
+Each Kafka server has one or both roles, set with `process.roles`. The 4.4 docs describe the split in control-plane terms: "In KRaft mode … the control plane functionality is fully integrated into Kafka itself. … brokers handle data-related requests, while the controllers (a.k.a., quorum controller) manage metadata-related requests."
+
+| | Control plane: controllers | Data plane: brokers |
+| --- | --- | --- |
+| `process.roles` | `controller` | `broker` |
+| Handles | Cluster metadata: topics, partitions, partition leaders, configs, broker liveness | Produce, fetch, and replication between brokers |
+| Listener | `controller.listener.names` (port 9093 in the lab) | Client and inter-broker listeners (port 9092 in the lab) |
+| When it fails | No new leader elections or topic changes. Writes need a majority of controllers. | That broker's partitions lose a replica or their leader |
+
+**What controllers do:**
+- **Track broker liveness.** Brokers heartbeat to the controller. A broker with no heartbeat for `broker.session.timeout.ms` (default 9 s) is offline and is removed from the ISR.
+- **Elect partition leaders.** The controller picks the new leader from the ISR, or from the ELR (see [2.3](#th-elections)). It batches elections, which keeps the window of unavailability short.
+- **Keep the metadata log.** Each controller in the quorum (a "voter") holds a full copy. "Each controller is either an active or a hot standby for the current active controller."
+
+<Note title="Controllers have no replication factor">
+Replication factor and `min.insync.replicas` apply to **topic partitions** on brokers. The number of metadata copies is simply the number of voters. Losing controllers and losing brokers are separate failures. Losing a controller majority stops metadata changes. Losing brokers affects data availability, which RF and min ISR protect (see [2.2](#th-acks)).
+</Note>
+
+**Sizing the quorum.** The docs: "A majority of the controllers must be alive in order to maintain availability," and admins "typically select 3 or 5" controllers. The majority of *n* is ⌊n/2⌋ + 1:
+
+| Controllers | Majority needed | Failures tolerated | Survives losing 1 of 3 zones? |
+| --- | --- | --- | --- |
+| 1 | 1 | 0 | No |
+| 2 | 2 | 0 | No |
+| **3** (1 per zone) | 2 | **1** | **Yes** (2 of 3 remain) |
+| 4 (2 + 1 + 1) | 3 | 1 | **No** if the zone holding 2 fails (2 of 4 remain) |
+| **5** (2 + 2 + 1) | 3 | **2** | **Yes** (3 of 5 remain in the worst case) |
+| 6 (2 + 2 + 2) | 4 | 2 | Yes (4 of 6 remain), but tolerates no more failures than 5 |
+
+**Why 4 is skipped.** Going from 3 to 4 controllers adds a machine but no extra failure tolerance (both survive 1 failure), and it is slightly worse:
+
+1. **Same limit, more things to break.** Quorum is lost at 2 failures either way, and 2 failures among 4 machines is more likely than among 3.
+2. **More acknowledgements per write.** A metadata change is committed once a majority has it: 3 machines instead of 2.
+3. **A 2-2 network split stops everything.** If the network splits the 4 into two halves, neither half has a majority, so neither side can elect an active controller. An odd number always leaves one side with a majority.
+4. **It doesn't fit three zones.** One zone has to hold 2 controllers, and losing that zone loses the quorum (table above).
+
+So 3 is the smallest quorum that survives one failure, and 5 is the next size that buys anything: it survives any two failed controllers, or the loss of any one zone with a 2-2-1 layout. (Not both at once: after losing a zone that holds 2, the remaining 3 can't lose another.) Six has the same weakness as four: it costs an extra machine and tolerates no more failures than five.
+
+<Note title="Where the reasoning comes from">
+The quotes and the "3 or 5" guidance are from the Kafka 4.4 docs. The "why not 4" reasoning and the zone column are majority-vote arithmetic that applies to any Raft-style quorum (etcd, ZooKeeper). It is not stated in the Kafka docs.
+</Note>
+
+**Combined vs dedicated controllers.** A server with `process.roles=broker,controller` is "combined". The docs call that "simpler to operate for small use cases like a development environment". The drawback is that "the controller will be less isolated from the rest of the system". For example, you can't roll or scale controllers separately from brokers. The lab in [3.6](#im-lab) uses 3 dedicated controllers and 3 brokers. `kafka-metadata-quorum.sh describe --status` shows the active controller as `LeaderId` and the three voters as `CurrentVoters`.
+
+**What losing the quorum looks like.** I tested this on the lab cluster from [3.1](#im-compose), with all three brokers up:
+
+```bash
+docker stop controller-2 controller-3          # 1 of 3 controllers left: no majority
+K kafka-topics.sh $B --create --topic payments --partitions 3 --replication-factor 3   # hangs
+K kafka-topics.sh $B --describe --topic orders                                         # times out
+echo order-2 | K kafka-console-producer.sh $B --topic orders --command-property acks=all
+K kafka-get-offsets.sh $B --topic orders
+docker start controller-2 controller-3
+```
+
+| Operation with 1 of 3 controllers | Result in the lab |
+| --- | --- |
+| Create a topic | Hung. I stopped it after 60 s. |
+| `kafka-topics.sh --describe` | `TimeoutException` (`listPartitionReassignments` needs a controller) |
+| `acks=all` produce to an existing topic | **Succeeded.** Offsets went from 1 to 2, then to 3 on a second send. |
+| Console consumer in a new group | Read nothing within 40 s |
+| After restarting the 2 controllers | Topic creation worked, and the consumer read `order-1 order-2 order-3` |
+
+So existing partitions with healthy leaders keep serving writes. Anything that changes metadata waits for a majority. A broker failure during that time can't be handled, because no new leader can be elected.
+
+<Note title="Unsure">
+I didn't find out why the new consumer group read nothing. My guess is that the `__consumer_offsets` topic didn't exist yet in this fresh cluster, and creating it needs the controllers. I haven't confirmed that, and I didn't test a consumer group that already existed before the outage.
+</Note>
+
+</Block>
+
+<Block id="th-mm2" title="2.7 MirrorMaker 2: replication between clusters" toc="2.7 MirrorMaker 2">
 
 Replication inside a cluster is synchronous with the producer when `acks=all` is used. **MirrorMaker 2 is separate.** It is built on Kafka Connect, consumes from a source cluster and produces to a target cluster. The docs list what it replicates: topic data and configs, consumer groups with offsets, and ACLs. It also preserves partitioning and detects new topics and partitions automatically.
 
@@ -281,7 +354,7 @@ The docs explain how to configure MM2 but give no failover or failback runbook. 
 
 </Block>
 
-<Block id="th-proscons" title="2.7 Problems solved, pros and cons" toc="2.7 Pros and cons">
+<Block id="th-proscons" title="2.8 Problems solved, pros and cons" toc="2.8 Pros and cons">
 
 **Problems this setup solves:** lost events when a broker dies after acking, duplicates from producer retries, write outages during rolling restarts and patching, zone outages, and (with MM2) region loss and cloud migration.
 
