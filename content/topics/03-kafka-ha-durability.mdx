@@ -152,7 +152,85 @@ Another option is a single "stretched" cluster across regions, which turns regio
 
 <Part level={2} id="theory" title="Theory">
 
-<Block id="th-replication" title="2.1 Replication, leaders and the ISR" toc="2.1 Replication and the ISR">
+<Block id="th-partitions" title="2.1 Partitions and offsets: where messages live" toc="2.1 Partitions and offsets">
+
+A **topic** is a name for a set of **partitions**. Each partition is one ordered, append-only log. The docs: "When a new event is published to a topic, it is actually appended to one of the topic's partitions." So **each message is written to exactly one partition**. Replication then copies that partition, not the message on its own, to RF brokers.
+
+This is the topic `payments` (3 partitions, RF 3) after sending seven keyed messages in the lab:
+
+```text
+Topic "payments"
+│
+├── Partition 0   (leader: broker 6, copies on 4 and 5)
+│     offset:  0        1        2        3        4
+│            [alice ] [bob   ] [alice ] [bob   ] [alice ]  → new messages are appended here
+│            order-1  order-2  order-4  order-5  order-6
+│
+├── Partition 1   (leader: broker 4, copies on 5 and 6)
+│     offset:  0
+│            [dave  ]
+│            order-7
+│
+└── Partition 2   (leader: broker 5, copies on 6 and 4)
+      offset:  0
+             [carol ]
+             order-3
+```
+
+**How a message picks its partition** (producer `partitioner.class`, default logic):
+
+| The message has… | Partition chosen |
+| --- | --- |
+| An explicit partition number | That partition |
+| A key | "a partition based on a hash of the key". Same key, same partition. |
+| No key | "the sticky partition that changes when at least `batch.size` bytes are produced to the partition" |
+
+In the lab, `alice` and `bob` both hashed to partition 0. When I sent six messages without keys, all six went into one partition, because a small burst never fills `batch.size`, so the sticky partition never changes.
+
+**Why split a topic into partitions?**
+
+1. **Scale writes.** Each partition has its own leader, so several brokers accept writes for one topic at once. In the diagram the leaders are brokers 6, 4 and 5. The docs: "This distributed placement … allows client applications to both read and write the data from/to many brokers at the same time."
+2. **Scale reads.** Within a consumer group, each partition is read by one consumer, so the partition count caps how many consumers in a group can work in parallel.
+3. **Ordering where it matters.** "Events with the same event key … are written to the same partition, and Kafka guarantees that any consumer of a given topic-partition will always read that partition's events in exactly the same order as they were written." There is **no** ordering across partitions.
+4. **Unit of replication and failover.** RF, ISR, leader election and min ISR (2.2 to 2.4) all work per partition: "This replication is performed at the level of topic-partitions."
+
+**Where messages are stored.** Each broker keeps one folder per partition copy under `log.dirs` (`/var/lib/kafka/data` in the lab). Real listing from `kafka-1`:
+
+```text
+/var/lib/kafka/data/
+├── __cluster_metadata-0/     ← KRaft metadata log (brokers keep a copy, see 2.7)
+├── orders-0/  orders-1/  orders-2/
+└── payments-0/
+    ├── 00000000000000000000.log        ← the messages (152 bytes here)
+    ├── 00000000000000000000.index      ← offset → position in the .log file
+    ├── 00000000000000000000.timeindex  ← timestamp → offset
+    ├── leader-epoch-checkpoint
+    └── partition.metadata
+```
+
+With RF 3 on 3 brokers, all three brokers had folders for all three partitions. The file name is the first offset in that **segment** file. New segments start as the log grows, and old ones are removed by retention or compaction. `kafka-dump-log.sh --print-data-log` on `payments-0` showed the records themselves: `offset: 0 key: alice payload: order-1`, then `bob`, `alice`, `bob`, `alice` at offsets 1 to 4.
+
+**Offset** is used for two related things:
+
+- **A message's offset** is its position in the partition. The leader assigns the next number when it appends, and the number is never reused. It only means something together with its partition: in the diagram, "offset 0" is three different messages.
+- **A consumer group's committed offset** is the group's bookmark per partition, meaning the **next** offset to read. The consumer "tracks the maximum offset it has consumed in each partition and has the capability to commit offsets so that it can resume from those offsets in the event of a restart". Commits go to the group's coordinator broker, which "appends the request to a special compacted Kafka topic named `__consumer_offsets`". The commit is acknowledged "only after all the replicas of the offsets topic receive the offsets".
+
+| Offset you'll see in tool output | Meaning | Where it appears on this page |
+| --- | --- | --- |
+| Log-end offset | Next offset the leader will assign (last message + 1) | `LOG-END-OFFSET` in 3.6, step 7 |
+| High watermark | How far all in-sync replicas have the data. Consumers can read only up to here. | The `acks=1` record that stayed invisible in 3.6, step 3 |
+| Committed offset | The group's saved bookmark | `CURRENT-OFFSET` in 3.6, step 7: offsets 0 to 4 read, bookmark **5** |
+| Lag | Log-end offset minus committed offset | `LAG` column in 3.6, step 7 |
+
+A group with no bookmark (new, or its offset was removed by retention) uses `auto.offset.reset`: `latest` (**default**: only new messages), `earliest`, `by_duration:<duration>`, or `none` (throw an error). Committing **after** processing gives at-least-once delivery. Committing **before** gives at-most-once (2.5).
+
+<Note title="Choose the partition count up front">
+"Kafka does not currently support reducing the number of partitions for a topic." Adding partitions is possible. The key hash depends on the partition count, though, so after adding partitions some existing keys move to a different partition and their per-key ordering breaks across the change. That consequence is my inference, not tested. The `auto.offset.reset` docs also warn that "increasing a topic's partition count while this config is set to latest may cause silent message loss".
+</Note>
+
+</Block>
+
+<Block id="th-replication" title="2.2 Replication, leaders and the ISR" toc="2.2 Replication and the ISR">
 
 The Kafka design docs describe replication like this:
 
@@ -165,7 +243,7 @@ The Kafka design docs describe replication like this:
 
 </Block>
 
-<Block id="th-acks" title="2.2 acks and min.insync.replicas: the durability contract" toc="2.2 acks + min.insync.replicas">
+<Block id="th-acks" title="2.3 acks and min.insync.replicas: the durability contract" toc="2.3 acks + min.insync.replicas">
 
 The producer's `acks` setting decides when a send counts as successful:
 
@@ -194,7 +272,7 @@ One more detail, confirmed in the lab: "Regardless of the acks setting, the mess
 
 </Block>
 
-<Block id="th-elections" title="2.3 Leader elections: unclean election and ELR" toc="2.3 Unclean election and ELR">
+<Block id="th-elections" title="2.4 Leader elections: unclean election and ELR" toc="2.4 Unclean election and ELR">
 
 **What happens if every in-sync replica dies?** Kafka can either wait for an ISR member to come back (consistent, but unavailable meanwhile) or promote whichever replica returns first (available, but "its log becomes the source of truth even though it is not guaranteed to have every committed message"). `unclean.leader.election.enable` chooses between them. Its default is **`false`**: Kafka waits for a consistent replica. Keep it `false` for business events. Set it to `true` only on topics where uptime matters more than completeness, such as some metrics.
 
@@ -212,7 +290,7 @@ With ELR enabled, a cluster-level `min.insync.replicas` is created from the acti
 
 </Block>
 
-<Block id="th-producer" title="2.4 Idempotent and transactional producers" toc="2.4 Idempotence and transactions">
+<Block id="th-producer" title="2.5 Idempotent and transactional producers" toc="2.5 Idempotence and transactions">
 
 Replication protects data that reached the broker. It does nothing about a producer retrying a send whose response was lost. That retry is the classic source of duplicates.
 
@@ -231,7 +309,7 @@ Transactional producer plus `read_committed` consumers, or Kafka Streams with ex
 
 </Block>
 
-<Block id="th-enterprise" title="2.5 Other features an enterprise cluster relies on" toc="2.5 Enterprise features">
+<Block id="th-enterprise" title="2.6 Other features an enterprise cluster relies on" toc="2.6 Enterprise features">
 
 <Grid>
 <InfoCard title="Rack / zone awareness">
@@ -241,7 +319,7 @@ Set `broker.rack` (for example `us-east-1d`) on every broker. When replicas are 
 On brokers, set `replica.selector.class=org.apache.kafka.common.replica.RackAwareReplicaSelector`. On consumers, set `client.rack` to match their zone. Consumers then read from a replica in their own zone instead of the leader, which cuts cross-zone traffic. By default consumers read only from the leader.
 </InfoCard>
 <InfoCard title="KRaft controller quorum">
-Kafka 4.x runs only in KRaft mode. ZooKeeper is gone. The metadata quorum needs a majority of controllers alive: "With 3 controllers, the cluster can tolerate 1 controller failure; with 5 controllers … 2." Put one controller per zone. Sizing is covered in [2.6](#th-kraft).
+Kafka 4.x runs only in KRaft mode. ZooKeeper is gone. The metadata quorum needs a majority of controllers alive: "With 3 controllers, the cluster can tolerate 1 controller failure; with 5 controllers … 2." Put one controller per zone. Sizing is covered in [2.7](#th-kraft).
 </InfoCard>
 <InfoCard title="Internal topic RF">
 `offsets.topic.replication.factor` and `transaction.state.log.replication.factor` both default to 3. Committed consumer offsets and transaction state need the same protection as your data. Don't lower them outside a lab.
@@ -266,7 +344,7 @@ Tiered storage (`remote.log.storage.system.enable`, default `false`) moves older
 
 </Block>
 
-<Block id="th-kraft" title="2.6 KRaft controllers: Kafka's control plane" toc="2.6 KRaft controllers">
+<Block id="th-kraft" title="2.7 KRaft controllers: Kafka's control plane" toc="2.7 KRaft controllers">
 
 Each Kafka server has one or both roles, set with `process.roles`. The 4.4 docs describe the split in control-plane terms: "In KRaft mode … the control plane functionality is fully integrated into Kafka itself. … brokers handle data-related requests, while the controllers (a.k.a., quorum controller) manage metadata-related requests."
 
@@ -279,11 +357,11 @@ Each Kafka server has one or both roles, set with `process.roles`. The 4.4 docs 
 
 **What controllers do:**
 - **Track broker liveness.** Brokers heartbeat to the controller. A broker with no heartbeat for `broker.session.timeout.ms` (default 9 s) is offline and is removed from the ISR.
-- **Elect partition leaders.** The controller picks the new leader from the ISR, or from the ELR (see [2.3](#th-elections)). It batches elections, which keeps the window of unavailability short.
+- **Elect partition leaders.** The controller picks the new leader from the ISR, or from the ELR (see [2.4](#th-elections)). It batches elections, which keeps the window of unavailability short.
 - **Keep the metadata log.** Each controller in the quorum (a "voter") holds a full copy. "Each controller is either an active or a hot standby for the current active controller."
 
 <Note title="Controllers have no replication factor">
-Replication factor and `min.insync.replicas` apply to **topic partitions** on brokers. The number of metadata copies is simply the number of voters. Losing controllers and losing brokers are separate failures. Losing a controller majority stops metadata changes. Losing brokers affects data availability, which RF and min ISR protect (see [2.2](#th-acks)).
+Replication factor and `min.insync.replicas` apply to **topic partitions** on brokers. The number of metadata copies is simply the number of voters. Losing controllers and losing brokers are separate failures. Losing a controller majority stops metadata changes. Losing brokers affects data availability, which RF and min ISR protect (see [2.3](#th-acks)).
 </Note>
 
 **Sizing the quorum.** The docs: "A majority of the controllers must be alive in order to maintain availability," and admins "typically select 3 or 5" controllers. The majority of *n* is ⌊n/2⌋ + 1:
@@ -339,7 +417,7 @@ I didn't find out why the new consumer group read nothing. My guess is that the 
 
 </Block>
 
-<Block id="th-mm2" title="2.7 MirrorMaker 2: replication between clusters" toc="2.7 MirrorMaker 2">
+<Block id="th-mm2" title="2.8 MirrorMaker 2: replication between clusters" toc="2.8 MirrorMaker 2">
 
 Replication inside a cluster is synchronous with the producer when `acks=all` is used. **MirrorMaker 2 is separate.** It is built on Kafka Connect, consumes from a source cluster and produces to a target cluster. The docs list what it replicates: topic data and configs, consumer groups with offsets, and ACLs. It also preserves partitioning and detects new topics and partitions automatically.
 
@@ -354,7 +432,7 @@ The docs explain how to configure MM2 but give no failover or failback runbook. 
 
 </Block>
 
-<Block id="th-proscons" title="2.8 Problems solved, pros and cons" toc="2.8 Pros and cons">
+<Block id="th-proscons" title="2.9 Problems solved, pros and cons" toc="2.9 Pros and cons">
 
 **Problems this setup solves:** lost events when a broker dies after acking, duplicates from producer retries, write outages during rolling restarts and patching, zone outages, and (with MM2) region loss and cloud migration.
 
@@ -403,7 +481,7 @@ x-controller-env: &controller-env
   CLUSTER_ID: 4L6g3nShT-eMCtK--X86sw
   KAFKA_LOG_DIRS: /var/lib/kafka/data
   KAFKA_HEAP_OPTS: -Xms256m -Xmx256m
-  # cluster defaults are read from the controllers (see 2.3)
+  # cluster defaults are read from the controllers (see 2.4)
   KAFKA_DEFAULT_REPLICATION_FACTOR: 3
   KAFKA_MIN_INSYNC_REPLICAS: 2
 
