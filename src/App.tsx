@@ -42,11 +42,17 @@ function ScrollManager() {
   return null;
 }
 
+// React Router treats every href as a path, which would turn https://… into /base/page/https:/….
+function useAppHref(href: string) {
+  const routed = useHref(href);
+  return /^[a-z][a-z\d+.-]*:/i.test(href) ? href : routed;
+}
+
 export function App() {
   const navigate = useNavigate();
   return (
     // Lets HeroUI links (href="/topics/…", href="#section") navigate through React Router.
-    <RouterProvider navigate={(to) => navigate(to)} useHref={useHref}>
+    <RouterProvider navigate={(to) => navigate(to)} useHref={useAppHref}>
       <ThemeProvider>
         <ScrollManager />
         <div className="flex min-h-dvh flex-col">
