@@ -41,7 +41,7 @@ export function CodeBlock({
   const label = title ?? (lang && lang !== "text" ? lang : undefined);
 
   return (
-    <figure className="grid min-w-0 overflow-hidden rounded-xl border border-border bg-code">
+    <figure className="grid min-w-0 grid-cols-[minmax(0,1fr)] overflow-hidden rounded-xl border border-border bg-code">
       <figcaption className="flex min-h-9 items-center justify-between gap-2 border-b border-border py-1 ps-4 pe-1.5">
         <span className="truncate font-mono text-xs text-muted">{label}</span>
         <Button

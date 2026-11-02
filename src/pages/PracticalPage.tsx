@@ -28,9 +28,9 @@ function FolderItems({ folder, current }: { folder: TreeFolder; current?: string
         <li key={child.name} className="grid min-w-0 gap-0.5">
           <span className="flex items-start gap-1.5 py-0.5 text-muted">
             <Folder className="mt-0.5 flex-none" />
-            <span className="min-w-0 break-all">{child.name}</span>
+            <span className="min-w-0 wrap-anywhere">{child.name}</span>
           </span>
-          <div className="ms-2 border-s border-border ps-2">
+          <div className="ms-1.5 border-s border-border ps-1.5">
             <FolderItems folder={child} current={current} />
           </div>
         </li>
@@ -45,7 +45,7 @@ function FolderItems({ folder, current }: { folder: TreeFolder; current?: string
             }`}
           >
             <File className="mt-0.5 flex-none" />
-            <span className="min-w-0 break-all">{file.name}</span>
+            <span className="min-w-0 wrap-anywhere">{file.name}</span>
           </RouterLink>
         </li>
       ))}
@@ -102,7 +102,7 @@ function FileView({ file }: { file: PracticalFile }) {
       <Doc components={components} />
     </article>
   ) : (
-    <CodeBlock data-title={path} data-lang={lang} className="shiki">
+    <CodeBlock data-title={file.name} data-lang={lang} className="shiki">
       <code dangerouslySetInnerHTML={{ __html: html ?? "" }} />
     </CodeBlock>
   );
@@ -140,7 +140,7 @@ export function PracticalPage() {
           </p>
           {file ? (
             <>
-              <h1 className="font-mono text-[clamp(20px,4vw,30px)] font-bold break-all">{file.path}</h1>
+              <h1 className="font-mono text-[clamp(20px,4vw,30px)] font-bold wrap-anywhere">{file.path}</h1>
               <Link
                 href={githubUrl(file.path)}
                 target="_blank"
@@ -164,9 +164,9 @@ export function PracticalPage() {
         </div>
       </header>
 
-      <main className="mx-auto grid w-full max-w-[920px] flex-1 content-start gap-8 px-4 pt-8 pb-18 md:grid-cols-[240px_minmax(0,1fr)]">
+      <main className="mx-auto grid w-full max-w-[920px] flex-1 content-start gap-8 px-4 pt-8 pb-18 md:grid-cols-[270px_minmax(0,1fr)]">
         {/* Below the file on a phone, so the file is what you see first. */}
-        <nav aria-label="Files" className="order-last min-w-0 text-sm md:order-first">
+        <nav aria-label="Files" className="order-last min-w-0 text-[13px] md:order-first">
           <h2 className="mb-2 font-mono text-[13px] font-medium tracking-[0.1em] text-muted uppercase">Files</h2>
           <FolderItems folder={tree} current={file?.path} />
         </nav>
