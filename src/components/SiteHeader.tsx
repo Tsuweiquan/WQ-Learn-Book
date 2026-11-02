@@ -37,11 +37,21 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-20 border-b border-border bg-background/85 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-[920px] items-center justify-between gap-4 px-4">
-        <Link to="/" className="flex items-center gap-2 font-display text-lg font-bold text-foreground no-underline">
+        <Link
+          to="/"
+          aria-label="WQ Learn Book"
+          className="flex items-center gap-2 font-display text-lg font-bold text-foreground no-underline"
+        >
           <BookOpen className="text-accent" />
-          WQ <span className="text-accent">Learn</span> Book
+          {/* Icon only on a phone: the logo, both links and the theme switcher don't fit on one line. */}
+          <span className="hidden items-center gap-2 sm:flex">
+            WQ <span className="text-accent">Learn</span> Book
+          </span>
         </Link>
         <div className="flex items-center gap-3">
+          <Link to="/" className="text-sm font-semibold text-foreground no-underline hover:text-accent">
+            Learn
+          </Link>
           <Link to="/practical" className="text-sm font-semibold text-foreground no-underline hover:text-accent">
             Practical
           </Link>
