@@ -262,6 +262,40 @@ Use a dedicated service account per workload and grant `roles/telemetry.writer` 
 
 </Block>
 
+<Block id="th-micrometer" title="2.8 Can OpenTelemetry replace Micrometer and your logging library?" toc="2.8 Replace Micrometer / logging?">
+
+**Short answer:** for **metrics**, yes, OpenTelemetry can replace Micrometer, but you don't have to do it in one step. For **logging**, no: OpenTelemetry is not meant to replace SLF4J, Log4j2 or Logback. It plugs into them.
+
+**Logging.** The OpenTelemetry docs say the Logs Bridge API "should not be called by you directly, as it is provided for logging library authors". The intended approach is to "use your preferred logging library and configure it to use a log appender (or log bridge)". So keep `log.info(...)` through SLF4J. The Java agent adds trace context to the MDC (Log4j 2.7+, Logback 1.0+) and can export log events over OTLP. What changes is **where logs go**, not how you write them. This page already works that way: SLF4J + Log4j2 for the code, stdout JSON or OTLP for transport.
+
+**Metrics.** You have three paths:
+
+| | 1 · Replace with the OTel API | 2 · Keep Micrometer, bridge it through the agent | 3 · Keep Micrometer, use its OTLP registry |
+| --- | --- | --- | --- |
+| How | New meters use `GlobalOpenTelemetry.getMeter()` (as in [3.1](#im-app)). HTTP/JVM metrics come from the agent. Remove Micrometer registries. | Agent with `OTEL_INSTRUMENTATION_MICROMETER_ENABLED=true`. The Micrometer bridge is **off by default**. | `io.micrometer:micrometer-registry-otlp`. Spring Boot auto-configures it (`management.otlp.metrics.export.url`, default `localhost:4318/v1/metrics`). |
+| Code changes | Rewrite `Counter`/`Timer` calls | None | None |
+| Metric names | OTel semantic conventions (`http.server.request.duration`, `jvm.memory.used` in `By`) | Micrometer names (`http.server.requests`, `jvm.memory.used` in `bytes`) **plus** the agent's own | Micrometer names only |
+| Traces and log correlation | From the agent | From the agent | No. You need the agent or another tracer for those. |
+| Best for | New services, or a planned dashboard migration | Moving existing services onto OTLP now, migrating meters later | Teams that want metrics over OTLP but no Java agent |
+
+<Note title="Name collisions when bridging (seen in the lab)">
+With the bridge on, a Spring Boot Actuator app sent **54 to 55 Micrometer meters** next to the agent's 12 runtime metrics. Two names exist in both, **`jvm.memory.used`** and **`jvm.memory.committed`**, with different kinds, units and labels:
+- Micrometer: a Gauge in `bytes`, labels `area`/`id`.
+- Agent: a non-monotonic Sum in `By`, labels `jvm.memory.type`/`jvm.memory.pool.name`.
+
+Both map to `prometheus.googleapis.com/jvm.memory.used/gauge` (see [2.3](#th-metrics)). I couldn't confirm whether Cloud Monitoring rejects the second set or mixes them, but either outcome breaks dashboards. Keep **one** source of JVM metrics. Setting `MANAGEMENT_METRICS_ENABLE_JVM=false` (Spring's `management.metrics.enable.jvm=false`) removed all Micrometer `jvm.*` meters in the lab and kept `http.server.requests` and custom meters.
+</Note>
+
+**Also note:**
+- Bridging duplicates HTTP metrics: Micrometer's `http.server.requests` and the agent's `http.server.request.duration` both describe the same requests. Choose the one your dashboards use and drop the other, either with a Micrometer `MeterFilter` or in the collector.
+- The agent's Spring Boot Actuator integration (`spring-boot-actuator-autoconfigure`) is also off by default. In the source, the reason given is that it "produces a lot of metrics that are already captured - e.g. JVM memory usage".
+
+<Tip title="Recommendation">
+For an existing Spring Boot fleet, start with **path 2** and set `MANAGEMENT_METRICS_ENABLE_JVM=false`. Services move to OTLP and the Telemetry API with no code changes, and you get traces plus log-to-trace links from the agent. Then move business meters to the OTel API one service at a time (path 1), rebuilding each dashboard on the semantic-convention names as you go. Keep SLF4J for logging.
+</Tip>
+
+</Block>
+
 <Block id="th-proscons" title="2.7 Problems solved, pros and cons" toc="2.7 Pros and cons">
 
 **Problems this solves:** a different agent per platform, Google-specific code in the app, logs that can't be joined to requests, metric names that change by platform, and credentials spread across application config.
@@ -976,6 +1010,62 @@ Body: Str(No active profile set, falling back to 1 default profile: "default")
 Those same lines also went to stdout. On Cloud Run or GKE you would store and pay for them twice. The main `orders` container, which sets `OTEL_LOGS_EXPORTER=none`, sent no log records at all during the run.
 
 </Step>
+<Step title="Optional: bridge an existing Micrometer app">
+
+To try path 2 from [2.8](#th-micrometer), add Actuator to `pom.xml` and one Micrometer counter in `checkout()`, rebuild the image as `orders-mm:1.0.0`, then compare runs with and without the bridge:
+
+```xml
+<dependency>
+  <groupId>org.springframework.boot</groupId>
+  <artifactId>spring-boot-starter-actuator</artifactId>
+</dependency>
+```
+
+```java
+// in checkout(), next to orders.add(...)
+io.micrometer.core.instrument.Metrics.counter("legacy.orders", "result", result).increment();
+```
+
+```bash
+docker compose up -d collector
+mm() {   # $1 = run name, rest = extra -e flags
+  docker run -d --rm --name "$1" --network otel-java-gcp_default \
+    -e OTEL_SERVICE_NAME="$1" -e OTEL_EXPORTER_OTLP_ENDPOINT=http://collector:4317 \
+    -e OTEL_EXPORTER_OTLP_PROTOCOL=grpc -e OTEL_LOGS_EXPORTER=none -e OTEL_METRIC_EXPORT_INTERVAL=10000 \
+    "${@:2}" orders-mm:1.0.0 >/dev/null
+  sleep 30
+  docker run --rm --network otel-java-gcp_default curlimages/curl:8.17.0 -s "http://$1:8080/checkout" >/dev/null
+  sleep 25
+  echo "$1: $(docker compose logs collector --no-log-prefix --since 50s | awk '
+      /InstrumentationScope/ {m = /micrometer/}
+      m && /-> Name:/ {print $3}' | sort -u | wc -l) Micrometer meters"
+  docker rm -f "$1" >/dev/null
+}
+mm bridge-off
+mm bridge-on -e OTEL_INSTRUMENTATION_MICROMETER_ENABLED=true
+mm bridge-on-nojvm -e OTEL_INSTRUMENTATION_MICROMETER_ENABLED=true -e MANAGEMENT_METRICS_ENABLE_JVM=false
+docker compose down
+```
+
+```text output
+bridge-off: 0 Micrometer meters
+bridge-on: 54 Micrometer meters
+bridge-on-nojvm: 32 Micrometer meters
+```
+
+What the lab showed, counted per service from the collector output:
+
+| Run | Micrometer scope (`io.opentelemetry.micrometer-1.5`) | Agent runtime metrics | Custom OTel meters |
+| --- | --- | --- | --- |
+| Bridge off (default, or `=false`) | none | 12 | 2 |
+| Bridge on | 54 to 55 meters (varied between runs), including `http.server.requests`, `legacy.orders`, `jvm.memory.used`, `tomcat.sessions.*`, `log4j2.events` | 12 | 2 |
+| Bridge on + `MANAGEMENT_METRICS_ENABLE_JVM=false` | 32 meters, no `jvm.*`. `http.server.requests` and `legacy.orders` still present. | 12 | 2 |
+
+<Muted>
+Run the containers one at a time, as the function does. Concurrent exports interleave in the collector's debug log. That happened in my first attempt and briefly made it look as if the bridge was on by default. It isn't.
+</Muted>
+
+</Step>
 <Step title="Clean up">
 
 ```bash
@@ -1017,6 +1107,9 @@ The network name `otel-java-gcp_default` comes from the folder name. Outputs abo
 - [Google Cloud · Structured logging (special JSON fields)](https://docs.cloud.google.com/logging/docs/structured-logging)
 - [OpenTelemetry · Java agent](https://opentelemetry.io/docs/zero-code/java/agent/) and [Java SDK configuration (env vars, defaults)](https://opentelemetry.io/docs/languages/java/configuration/)
 - [opentelemetry-java-instrumentation · Logger MDC instrumentation](https://github.com/open-telemetry/opentelemetry-java-instrumentation/blob/v2.33.1/docs/logger-mdc-instrumentation.md)
+- [OpenTelemetry · Logs concepts (Log Appender / Bridge)](https://opentelemetry.io/docs/concepts/signals/logs/)
+- [opentelemetry-java-instrumentation · Micrometer bridge settings](https://github.com/open-telemetry/opentelemetry-java-instrumentation/blob/v2.33.1/instrumentation/micrometer/micrometer-1.5/javaagent/README.md) and [supported libraries (Micrometer 1.5+, disabled by default)](https://github.com/open-telemetry/opentelemetry-java-instrumentation/blob/v2.33.1/docs/supported-libraries.md)
+- [Micrometer · OTLP registry](https://docs.micrometer.io/micrometer/reference/implementations/otlp.html) and [Spring Boot 3.5 · Metrics (OTLP export, per-meter enable)](https://docs.spring.io/spring-boot/3.5/reference/actuator/metrics.html)
 - [Apache Log4j · JSON Template Layout (GcpLayout.json)](https://logging.apache.org/log4j/2.x/manual/json-template-layout.html)
 - [GoogleCloudPlatform/opentelemetry-operations-collector (Google-Built Collector source, systemd unit)](https://github.com/GoogleCloudPlatform/opentelemetry-operations-collector/tree/master/google-built-opentelemetry-collector)
 
