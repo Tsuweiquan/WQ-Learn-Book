@@ -262,7 +262,7 @@ Use a dedicated service account per workload and grant `roles/telemetry.writer` 
 
 </Block>
 
-<Block id="th-micrometer" title="2.8 Can OpenTelemetry replace Micrometer and your logging library?" toc="2.8 Replace Micrometer / logging?">
+<Block id="th-micrometer" title="2.7 Can OpenTelemetry replace Micrometer and your logging library?" toc="2.7 Replace Micrometer / logging?">
 
 **Short answer:** for **metrics**, yes, OpenTelemetry can replace Micrometer, but you don't have to do it in one step. For **logging**, no: OpenTelemetry is not meant to replace SLF4J, Log4j2 or Logback. It plugs into them.
 
@@ -296,7 +296,61 @@ For an existing Spring Boot fleet, start with **path 2** and set `MANAGEMENT_MET
 
 </Block>
 
-<Block id="th-proscons" title="2.7 Problems solved, pros and cons" toc="2.7 Pros and cons">
+<Block id="th-cost" title="2.8 Metric resolution, retention and cost" toc="2.8 Resolution and cost">
+
+**OTel does not store per-second values.** The SDK aggregates in memory and exports **one data point per time series per export interval**: `OTEL_METRIC_EXPORT_INTERVAL`, default 60 s. Counters and histograms are cumulative, so each point carries the running total, and nothing between exports is lost. In the lab (10 s interval), `orders.placed{card,ok}` arrived as 5 → 23 → 36 → 55 … one point every 10 s, however many orders happened in between.
+
+**Google Cloud already downsamples old data.** For OTLP and Managed Service for Prometheus metrics (`prometheus.googleapis.com/...`), the Cloud Monitoring quotas page says the data "is stored for 1 week at its original sampling frequency, then it is down-sampled to 1-minute intervals for the next 5 weeks, then it is down-sampled to 10-minute intervals for extended storage":
+
+| Age of the data | Resolution kept |
+| --- | --- |
+| 0 to 1 week | As sent (e.g. every 10 s) |
+| 1 to 6 weeks | 1 minute |
+| 6 weeks to 24 months | 10 minutes |
+| After 24 months | Deleted |
+
+You don't configure this. Managed Service for Prometheus "does not charge for storage or retention of metric data".
+
+**What you pay for is samples ingested.** Billing is "based primarily on the number of metric samples ingested", at $0.06 per million for the first 50 billion samples (pricing page, at the time of writing). So any saving has to happen **before** export. For one time series over a 30-day month (my arithmetic from the list price; your tier may differ):
+
+| Export interval | Samples per series per month | 1,000 series |
+| --- | --- | --- |
+| 10 s | 259,200 | 259.2 M ≈ $15.55 |
+| 60 s (default) | 43,200 | 43.2 M ≈ $2.59 |
+
+**Ways to send fewer samples**, biggest effect first:
+
+1. **Keep the default 60 s interval in production.** The lab uses `OTEL_METRIC_EXPORT_INTERVAL=10000` only so you see output faster. On GKE, the `Instrumentation` resource's `interval` (5,000 to 300,000 ms, multiples of 5,000) sets it per namespace.
+2. **Re-aggregate in the collector** with the **interval processor**, when you can't change every app. It is in the Google-Built Collector 0.163.1. Put it first in the metrics pipeline (lab step "Thin metrics with the interval processor"):
+
+   ```yaml
+   processors:
+     interval:
+       interval: 60s          # forward one point per series per minute
+   service:
+     pipelines:
+       metrics/otlp:
+         processors: [interval, resourcedetection, resource/gcp_project_id, transform/collision, transform/prometheus_unknown_types, metricstarttime, memory_limiter, batch]
+   ```
+3. **Reduce cardinality.** Every label combination is a separate series, billed every interval. Drop or merge labels with the `metricstransform` processor (beta), action `aggregate_labels`, or with `transform`.
+4. **Drop metrics nobody uses** with the `filter` processor, for example some `jvm.*` metrics or bridged Micrometer meters (2.7).
+
+<Note title="Interval processor limits">
+From its README (v0.163.0):
+- It is **alpha**.
+- It forwards the **latest** value per series. It does not average. That is lossless for cumulative counters and histograms. For gauges it is "actual data loss": a value that went up and came back down in between is gone. `pass_through.gauge: true` leaves gauges untouched.
+- Delta metrics and non-monotonic sums pass through unchanged.
+- After each export its state is cleared, so a series that stops reporting sends nothing.
+- The README's config block says the default interval is 60s, but its example text says 15s. Set it explicitly.
+</Note>
+
+<Tip title="Need a real 1-minute average?">
+Neither the SDK nor the interval processor averages gauges. Record the values into a **histogram** instead. Its sum and count give the mean, and you get percentiles as well. Then compute the average at query time from the rate of the sum divided by the rate of the count. I have not tested that query in Cloud Monitoring.
+</Tip>
+
+</Block>
+
+<Block id="th-proscons" title="2.9 Problems solved, pros and cons" toc="2.9 Pros and cons">
 
 **Problems this solves:** a different agent per platform, Google-specific code in the app, logs that can't be joined to requests, metric names that change by platform, and credentials spread across application config.
 
@@ -1012,7 +1066,7 @@ Those same lines also went to stdout. On Cloud Run or GKE you would store and pa
 </Step>
 <Step title="Optional: bridge an existing Micrometer app">
 
-To try path 2 from [2.8](#th-micrometer), add Actuator to `pom.xml` and one Micrometer counter in `checkout()`, rebuild the image as `orders-mm:1.0.0`, then compare runs with and without the bridge:
+To try path 2 from [2.7](#th-micrometer), add Actuator to `pom.xml` and one Micrometer counter in `checkout()`, rebuild the image as `orders-mm:1.0.0`, then compare runs with and without the bridge:
 
 ```xml
 <dependency>
@@ -1066,6 +1120,30 @@ Run the containers one at a time, as the function does. Concurrent exports inter
 </Muted>
 
 </Step>
+<Step title="Optional: thin metrics with the interval processor">
+
+Make a copy of the local config with the interval processor first in the metrics pipeline, then run the lab once with each config and count how often `orders.placed` reaches the exporter:
+
+```bash
+sed -e '0,/^processors:$/s//processors:\n  interval:\n    interval: 60s          # forward one point per series per minute/' \
+    -e 's/processors: \[resourcedetection, resource\/gcp_project_id, transform\/collision/processors: [interval, resourcedetection, resource\/gcp_project_id, transform\/collision/' \
+    collector/local-config.yaml > collector/interval-config.yaml
+for cfg in local interval; do
+  sed "s#./collector/local-config.yaml#./collector/$cfg-config.yaml#" docker-compose.yml > compose-$cfg.yml
+  docker compose -f compose-$cfg.yml up -d >/dev/null 2>&1; sleep 180
+  echo "$cfg: $(docker compose -f compose-$cfg.yml logs collector --no-log-prefix | grep -c -- '-> Name: orders.placed') exports of orders.placed in ~3 min"
+  docker compose -f compose-$cfg.yml down >/dev/null 2>&1
+done
+```
+
+```text output
+local: 15 exports of orders.placed in ~3 min
+interval: 3 exports of orders.placed in ~3 min
+```
+
+The app still exports every 10 s. The collector now forwards one point per series per minute, which is 5× fewer samples billed. Because `orders.placed` is a cumulative counter, the forwarded value is still the full running total. In an earlier 30 s test, the values went 11 → 66 → 117 → 163.
+
+</Step>
 <Step title="Clean up">
 
 ```bash
@@ -1104,6 +1182,8 @@ The network name `otel-java-gcp_default` comes from the folder name. Outputs abo
 - [Google Cloud · Google-Built Collector on Compute Engine](https://docs.cloud.google.com/stackdriver/docs/instrumentation/opentelemetry-collector-gce)
 - [Google Cloud · Ops Agent OTLP receiver](https://docs.cloud.google.com/stackdriver/docs/solutions/agents/ops-agent/otlp) and [Ops Agent configuration (files, parse_json)](https://docs.cloud.google.com/stackdriver/docs/solutions/agents/ops-agent/configuration)
 - [Google Cloud · Telemetry (OTLP) API overview](https://docs.cloud.google.com/stackdriver/docs/reference/telemetry/overview), [OTLP ingestion overview](https://docs.cloud.google.com/stackdriver/docs/otlp-metrics/overview), [v1.metrics mapping](https://docs.cloud.google.com/stackdriver/docs/reference/telemetry/v1.metrics)
+- [Google Cloud · Monitoring quotas and limits (data retention and downsampling)](https://docs.cloud.google.com/monitoring/quotas), [Managed Service for Prometheus (storage, billing)](https://docs.cloud.google.com/stackdriver/docs/managed-prometheus), [Google Cloud Observability pricing](https://cloud.google.com/stackdriver/pricing)
+- [OpenTelemetry Collector contrib · interval processor (v0.163.0)](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/v0.163.0/processor/intervalprocessor/README.md) and [metricstransform processor](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/v0.163.0/processor/metricstransformprocessor/README.md)
 - [Google Cloud · Structured logging (special JSON fields)](https://docs.cloud.google.com/logging/docs/structured-logging)
 - [OpenTelemetry · Java agent](https://opentelemetry.io/docs/zero-code/java/agent/) and [Java SDK configuration (env vars, defaults)](https://opentelemetry.io/docs/languages/java/configuration/)
 - [opentelemetry-java-instrumentation · Logger MDC instrumentation](https://github.com/open-telemetry/opentelemetry-java-instrumentation/blob/v2.33.1/docs/logger-mdc-instrumentation.md)
