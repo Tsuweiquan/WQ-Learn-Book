@@ -96,7 +96,7 @@ Your app already exposes `/actuator/prometheus`. Prometheus can scrape it direct
 
 <Block id="arch-c" title="1.4 Architecture C · A node agent tails log files (the Filebeat idea)" toc="1.4 C · Tail log files">
 
-A DaemonSet reads every container's stdout from `/var/log/pods` on the node, the way Filebeat does. This collects logs from apps that have no OTel at all. **Filebeat itself can't be the agent for Loki:** see [2.4](#th-filebeat). The OTel Collector's own `filelog` receiver, run as a DaemonSet, does the same job and can export to Loki.
+A DaemonSet reads every container's stdout from `/var/log/pods` on the node, the way Filebeat does. This collects logs from apps that have no OTel at all. **Filebeat itself can't be the agent for Loki:** see [2.5](#th-filebeat). The OTel Collector's own `filelog` receiver, run as a DaemonSet, does the same job and can export to Loki.
 
 <Fit>
 <Pros title="Fits when">
@@ -182,7 +182,52 @@ Loki's own example writes this list as `[service.name service.namespace …]`, s
 
 </Block>
 
-<Block id="th-filebeat" title="2.4 Why there is no Filebeat in this lab" toc="2.4 Why no Filebeat">
+<Block id="th-stdout" title="2.4 Should you turn off stdout logging?" toc="2.4 Keep stdout?">
+
+**No. Turn it down if you like, but keep it.** OTLP is the better *main* path: structured records with `trace_id`, `span_id` and `severity_text`, the same labels as the metrics, and one place (the collector) that decides where logs go. But OTLP is a network pipeline. stdout is the only copy that doesn't depend on the collector, Loki or the network being up.
+
+**What the test showed.** I ran your app with stdout reduced to warnings (`LOGGING_THRESHOLD_CONSOLE=WARN`) and OTLP logs going to a collector:
+
+```text output
+stdout 'Notification sent' lines: 0
+OTLP records:
+Body: Str(Notification sent, total sent=1)
+Body: Str(Notification sent, total sent=2)
+```
+
+Then I **stopped the collector** and sent two more notifications:
+
+```text output
+{"sent":3}
+{"sent":4}
+```
+
+"Notification sent, total sent=3" and "=4" appeared **nowhere**: not on stdout, because it was turned down to WARN, and not in the collector, because it was stopped. Ten seconds later, the app's own output still showed no export warning. With stdout turned off completely, those events would leave no trace at all.
+
+**When only stdout has the answer:**
+
+- **The collector, Loki or the network is down.** The agent can only buffer so much before it drops records.
+- **The app crashes.** Records still in the agent's in-memory batch are lost. stdout lines were written immediately.
+- **The JVM fails before the agent exports anything**, for example bad configuration at startup.
+- **The OTel settings themselves are wrong** (endpoint, protocol). `kubectl logs` reads stdout and is how you'd find out.
+
+**No duplicates here.** In this lab nothing ships stdout to Loki, so keeping it doesn't put each line in Loki twice. Loki only gets the OTLP copy. The duplicate trap in [Topic 04 · 2.4](/topics/04-otel-java-gcp#th-logs) is different: there, Cloud Run and GKE ship stdout to Cloud Logging themselves, so you choose one path.
+
+| Option | Setting | Use when |
+| --- | --- | --- |
+| **Keep stdout as is** (this page's default) | nothing | Local lab: easiest debugging |
+| **Reduce stdout to warnings** (tested) | `LOGGING_THRESHOLD_CONSOLE=WARN` in the Deployment's `env`. This is Spring Boot's `logging.threshold.console`: "The log level threshold to use for console logging." | You want a quieter console but still want errors in `kubectl logs` |
+| Turn stdout off | (not recommended) | Only if something else guarantees delivery, which nothing in this setup does |
+
+The threshold only filters the **console**. In the test, the agent still exported the INFO records over OTLP, because it hooks into Logback's loggers, not the console appender.
+
+<Muted>
+How it was tested: the `notification-service:1.0.0-otel` image from 3.5 and a collector-contrib 0.163.2 container with only an OTLP receiver and a `debug` exporter, on a Docker network. The app had `OTEL_METRICS_EXPORTER=none` and `OTEL_TRACES_EXPORTER=none`. I sent two POSTs, ran `docker stop` on the collector, then sent two more POSTs. This was a Docker test, not run on KinD. In the cluster, `kubectl -n observability scale deploy/otel-collector-opentelemetry-collector --replicas=0` simulates the same outage.
+</Muted>
+
+</Block>
+
+<Block id="th-filebeat" title="2.5 Why there is no Filebeat in this lab" toc="2.5 Why no Filebeat">
 
 - **Filebeat's outputs** (Elastic's "Configure the output" page) are Elasticsearch, Logstash, Kafka and Redis. "Only a single output may be defined." There is no Loki or OTLP output.
 - **Loki's "Send data" page** lists Grafana Alloy, the OpenTelemetry Collector (native OTLP), the Docker driver, Fluent Bit, Fluentd and language appenders. Filebeat isn't listed, and the old Logstash client page now only survives as a redirect alias.
@@ -192,7 +237,7 @@ So the lab sends logs the same way as metrics: agent → collector → Loki over
 
 </Block>
 
-<Block id="th-charts" title="2.5 Where the Helm charts come from" toc="2.5 Helm chart sources">
+<Block id="th-charts" title="2.6 Where the Helm charts come from" toc="2.6 Helm chart sources">
 
 - **Grafana:** the `grafana/grafana` chart README says "This chart has been migrated to grafana-community/helm-charts. After January 30th, 2026, updates and support for this chart will be provided in the new repository."
 - **Loki:** the `grafana/loki` chart is now "for Grafana Enterprise Logs (GEL) users only". "As of March 16, 2026, the Grafana Loki Helm chart for OSS users has moved to grafana-community/helm-charts."
@@ -205,7 +250,7 @@ Loki chart 20.x rejects unknown top-level keys and expects the simple-scalable t
 
 </Block>
 
-<Block id="th-proscons" title="2.6 Problems solved, pros and cons" toc="2.6 Pros and cons">
+<Block id="th-proscons" title="2.7 Problems solved, pros and cons" toc="2.7 Pros and cons">
 
 **Problems this lab solves:** you can watch your Java service's metrics and logs locally with the same OTel setup you'd use in a real cluster, learn the OTLP → Prometheus and OTLP → Loki mappings, and break things without a cloud bill.
 
@@ -723,7 +768,7 @@ curl -s -u admin:admin http://localhost:3000/api/datasources/uid/loki/health
 | No metrics or logs at all | `kubectl -n observability logs deploy/otel-collector-opentelemetry-collector`. Export errors name the failing backend. |
 | Collector gets data but Prometheus doesn't | Prometheus must run with `--web.enable-otlp-receiver`: `kubectl -n observability get deploy prometheus-server -o yaml \| grep otlp` |
 | Loki rejects logs as malformed | `allow_structured_metadata` must be true (Loki docs) |
-| `helm template` fails for Loki | Unknown top-level key (20.x schema), or simple-scalable replicas not 0 (see 2.5) |
+| `helm template` fails for Loki | Unknown top-level key (20.x schema), or simple-scalable replicas not 0 (see 2.6) |
 | To see what the app sends | Temporarily add `debug` to the `metrics` or `logs` exporters in `values/collector.yaml` and run `helm upgrade otel-collector … -f values/collector.yaml` |
 
 </Block>
@@ -746,6 +791,7 @@ This removes everything: the cluster, the loaded images inside it, and all Prome
 - [Prometheus · OTLP receiver (HTTP API)](https://prometheus.io/docs/prometheus/latest/querying/api/#otlp-receiver), [configuration `otlp` block](https://prometheus.io/docs/prometheus/latest/configuration/configuration/) and [prometheus-community/prometheus chart](https://github.com/prometheus-community/helm-charts/tree/main/charts/prometheus)
 - [Loki · Ingesting logs with the OpenTelemetry Collector](https://grafana.com/docs/loki/latest/send-data/otel/), [Modify default OpenTelemetry labels](https://grafana.com/docs/loki/latest/get-started/labels/modify-default-labels/), [Send data (clients)](https://grafana.com/docs/loki/latest/send-data/)
 - [grafana-community/helm-charts (Loki and Grafana charts)](https://github.com/grafana-community/helm-charts) and [grafana/helm-charts migration notice](https://github.com/grafana/helm-charts/blob/main/charts/grafana/README.md)
+- [Spring Boot · Logging (`logging.threshold.console`)](https://docs.spring.io/spring-boot/reference/features/logging.html)
 - [Elastic · Filebeat outputs](https://www.elastic.co/docs/reference/beats/filebeat/configuring-output)
 - [notification-service (Practical Book)](/practical/notification-service/README.md) and [its Docker image](/practical/docker/notification-service/README.md)
 
