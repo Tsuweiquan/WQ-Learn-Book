@@ -760,7 +760,203 @@ curl -s -u admin:admin http://localhost:3000/api/datasources/uid/loki/health
 
 </Block>
 
-<Block id="im-troubleshoot" title="3.8 Troubleshooting" toc="3.8 Troubleshooting">
+<Block id="im-cardinality" title="3.8 See what the app sends, and send less" toc="3.8 Reduce cardinality">
+
+Every unique combination of metric name and label values is one **series**, and series drive Prometheus memory and, on managed backends, cost. You can cut them at three levels **without changing your code**. Each level below is a ConfigMap or Helm values change.
+
+<Note title="Where these numbers come from">
+I measured each level with the topic's Docker Compose harness (the same images and Helm-rendered configs as 3.7), not on KinD. Each run sent 5 POSTs, 5 count requests, 5 health checks and one 404 to a fresh app instance. Series counts depend on traffic: more routes or status codes mean more series.
+</Note>
+
+**Look before you cut.** Start with what the app exposes itself (Micrometer), then what actually reached Prometheus:
+
+```bash
+# 1. What Micrometer exposes at /actuator/prometheus (port-forward from 3.7 still open)
+curl -s http://localhost:8080/actuator/prometheus | grep -v '^#' | sed -E 's/[{ ].*//' | sort | uniq -c | sort -rn | head
+curl -s http://localhost:8080/actuator/prometheus | grep -vc '^#'          # total series
+
+# 2. What reached Prometheus for this app
+curl -s http://localhost:9090/api/v1/query --data-urlencode 'query=count({job="shop/notification-service"})'
+curl -s http://localhost:9090/api/v1/query --data-urlencode 'query=topk(10, count by (__name__) ({job="shop/notification-service"}))'
+
+# 3. Which labels a metric carries
+curl -s -G http://localhost:9090/api/v1/series --data-urlencode 'match[]=http_server_request_duration_seconds_count'
+
+# 4. Prometheus' own cardinality report (whole server)
+curl -s http://localhost:9090/api/v1/status/tsdb
+```
+
+In a first exploratory run, `/actuator/prometheus` listed 53 series. For the measured runs below, the baseline was **177 series in 56 metric names** in Prometheus. The single biggest metric is `http_server_request_duration_seconds_bucket`: 15 bucket series for each route (14 default boundaries plus `+Inf`). Health checks alone add a route, `/actuator/health`. If Prometheus or anything else scrapes `/actuator/prometheus`, that adds another.
+
+| Level | Where you change it | What it can do | Series in the test |
+| --- | --- | --- | --- |
+| Baseline (3.6 as deployed) | — | — | **177** (56 metric names) |
+| **1 · Spring Boot switches** | ConfigMap → env vars | Remove whole Micrometer meter families by name prefix | **126** (23 names) |
+| **2 · Agent config file** | ConfigMap → mounted file | Drop instruments, keep only chosen attributes, change histogram buckets | **84** (with level 1) |
+| **3 · Collector filter** | Collector Helm values | Drop metrics, or individual data points by label value | **105** (with level 1) |
+| All three | | | **75**, with `notifications_sent_total` still correct (5) |
+
+**Level 1: Spring Boot switches.** `management.metrics.enable.<prefix>=false` removes every Micrometer meter whose name starts with `<prefix>` (the same Spring Boot per-meter property as in 2.2). Put them in a ConfigMap and load it with `envFrom`:
+
+```yaml title="kind-otel/k8s/metrics-config.yaml"
+# Level 1: Spring Boot switches, passed to the app as environment variables
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: notification-service-metrics
+  namespace: apps
+data:
+  # management.metrics.enable.<prefix>=false removes every Micrometer meter whose name starts with <prefix>
+  MANAGEMENT_METRICS_ENABLE_JVM: "false"          # JVM metrics come from the agent instead
+  MANAGEMENT_METRICS_ENABLE_HTTP: "false"         # duplicate of the agent's http.server.request.duration
+  MANAGEMENT_METRICS_ENABLE_TOMCAT: "false"
+  MANAGEMENT_METRICS_ENABLE_LOGBACK: "false"
+  MANAGEMENT_METRICS_ENABLE_PROCESS: "false"
+  MANAGEMENT_METRICS_ENABLE_SYSTEM: "false"
+  MANAGEMENT_METRICS_ENABLE_DISK: "false"
+  MANAGEMENT_METRICS_ENABLE_EXECUTOR: "false"
+  MANAGEMENT_METRICS_ENABLE_APPLICATION: "false"
+---
+# Level 2: OpenTelemetry Java agent declarative configuration, mounted as a file
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-agent-config
+  namespace: apps
+data:
+  otel-config.yaml: |
+    # OpenTelemetry Java agent declarative configuration (agent 2.26.0+; agent support is experimental)
+    file_format: "1.2"
+    resource:
+      attributes_list: ${OTEL_RESOURCE_ATTRIBUTES}
+      attributes:
+        - name: service.name
+          value: ${OTEL_SERVICE_NAME}
+    propagator:
+      composite:
+        - tracecontext:
+        - baggage:
+    tracer_provider:
+      processors:
+        - batch:
+            exporter:
+              otlp_http:
+                endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT}/v1/traces
+    meter_provider:
+      readers:
+        - periodic:
+            interval: 15000
+            exporter:
+              otlp_http:
+                endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT}/v1/metrics
+      views:
+        # 1. Fewer histogram buckets, and keep only the attributes you query by.
+        #    Use "included" (an allow-list), not "excluded" (see the note in 3.8).
+        - selector:
+            instrument_name: http.server.request.duration
+          stream:
+            aggregation:
+              explicit_bucket_histogram:
+                boundaries: [0.005, 0.025, 0.1, 0.5, 2.5]
+            attribute_keys:
+              included: [http.request.method, http.route, http.response.status_code]
+        # 2. Drop metrics nobody looks at
+        - selector:
+            instrument_name: jvm.class.*
+          stream:
+            aggregation:
+              drop:
+    logger_provider:
+      processors:
+        - batch:
+            exporter:
+              otlp_http:
+                endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT}/v1/logs
+    distribution:
+      javaagent:
+        instrumentation:
+          enabled:
+            - micrometer          # same as OTEL_INSTRUMENTATION_MICROMETER_ENABLED=true
+```
+
+```yaml title="kind-otel/k8s/deployment-patch.yaml"
+# Strategic-merge patch for the Deployment in k8s/notification-service.yaml
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          envFrom:
+            - configMapRef:
+                name: notification-service-metrics
+          env:
+            # With a config file, the agent ignores other OTEL_* variables
+            # unless the file references them, as otel-config.yaml does with ${...}
+            - name: OTEL_CONFIG_FILE
+              value: /etc/otel/otel-config.yaml
+          volumeMounts:
+            - name: otel-agent-config
+              mountPath: /etc/otel
+              readOnly: true
+      volumes:
+        - name: otel-agent-config
+          configMap:
+            name: otel-agent-config
+```
+
+```bash
+kubectl apply -f k8s/metrics-config.yaml
+kubectl -n apps patch deployment notification-service --patch-file k8s/deployment-patch.yaml
+kubectl -n apps rollout status deploy/notification-service
+```
+
+The file holds both ConfigMaps, and the patch applies levels 1 and 2 together. For level 1 alone, leave out the `OTEL_CONFIG_FILE` variable and the volume. A ConfigMap change only takes effect after `kubectl -n apps rollout restart deploy/notification-service`, because environment variables and the agent config are read at startup. `MANAGEMENT_METRICS_ENABLE_HTTP=false` also removes Micrometer's duplicate HTTP timer (2.2). In the test, that variable together with the others left 23 metric names, and the agent's HTTP and JVM metrics plus `notifications_sent_total` remained.
+
+**Level 2: OpenTelemetry views in the agent config file.** Views run inside the SDK, *before* aggregation. They can rename, drop or re-bucket an instrument and choose which attributes it keeps. Agent 2.26.0+ reads a declarative config file from `OTEL_CONFIG_FILE`. The OTel docs say: "Java agent support for declarative configuration is still experimental". The `otel-config.yaml` key in the ConfigMap above, tested with agent 2.33.1, does two things:
+
+- `http.server.request.duration`: 5 bucket boundaries instead of the default 14, and only `http.request.method`, `http.route` and `http.response.status_code` as attributes. In the test, that gave 6 bucket series per route instead of 15.
+- `jvm.class.*`: `aggregation: drop`, so it's never exported.
+
+<Note title="Two traps found while testing">
+1. **Use `included`, not `excluded`.** With `attribute_keys.excluded: [url.scheme, network.protocol.version]`, the HTTP metric gained labels it doesn't normally have: `client_address`, `network_peer_address`, `network_peer_port`, `server_address`, `server_port`, `url_path` and `user_agent_original`. Its series count rose instead of falling, to 30 bucket series for `/notifications` alone. It looks as if setting `attribute_keys` replaces the instrumentation's own list of recommended attributes, so an exclude-list lets everything else through. I couldn't confirm this in the docs, so treat it as observed behaviour and always use an allow-list.
+2. **The file replaces your environment variables.** The docs: "All environment variables are ignored unless you explicitly add them to the" configuration file. That's why the file has to repeat the endpoint, resource attributes, export interval and `micrometer` instrumentation, using `${…}` substitution. With `file_format: "1.0"` the agent warned "does not exactly match expected version '1.2'". With `"1.2"` it ran without warnings. The agent then also exported three `otel_sdk_metric_reader_collection_duration_seconds_*` series about itself.
+</Note>
+
+**Level 3: filter in the collector.** The filter processor drops metrics by name, or individual data points by label value. A view can't drop by value, so this is how to remove the `/actuator/*` routes. Add this values file to the collector release:
+
+```yaml title="kind-otel/values/collector-cardinality.yaml"
+# Level 3: extra values for the collector chart, used together with values/collector.yaml
+config:
+  processors:
+    filter/cardinality:
+      error_mode: ignore
+      metric_conditions:
+        # drop whole metrics by name
+        - metric.name == "jvm.cpu.count" or IsMatch(metric.name, "^jvm\\.class\\.")
+        # drop data points for health checks and scrapes
+        - IsMatch(datapoint.attributes["http.route"], "^/actuator")
+  service:
+    pipelines:
+      metrics:
+        processors: [memory_limiter, filter/cardinality, batch]
+```
+
+```bash
+helm upgrade otel-collector open-telemetry/opentelemetry-collector --version 0.178.2 -n observability \
+  -f values/collector.yaml -f values/collector-cardinality.yaml
+```
+
+The rendered config passed `otelcol validate` (collector-contrib 0.163.2). In the test, the app's `http_route` values in Prometheus went from `/**`, `/actuator/health`, `/notifications`, `/notifications/count` to the same list without `/actuator/health`. The filter README: "If all datapoints for a metric are dropped, the metric will also be dropped."
+
+<Tip title="Which level to use">
+Cut as early as possible. Level 1 and level 2 stop the data inside the JVM, so it costs no CPU to export and no network. Level 3 is central, and suits rules for many services at once, or dropping by label value. Removing a label at level 3 (instead of a whole data point) needs an aggregation step, such as `metricstransform` `aggregate_labels`. Otherwise two series that differed only by that label collide. I didn't test that here.
+</Tip>
+
+**Changing code isn't required, but it's the most direct fix** when the cardinality comes from your own metric: for example, a Micrometer tag or OTel attribute holding a user ID or an order ID. Your `notifications.sent` counter has no tags, so it's always one series.
+
+</Block>
+
+<Block id="im-troubleshoot" title="3.9 Troubleshooting" toc="3.9 Troubleshooting">
 
 | Symptom | Check |
 | --- | --- |
@@ -773,7 +969,7 @@ curl -s -u admin:admin http://localhost:3000/api/datasources/uid/loki/health
 
 </Block>
 
-<Block id="im-cleanup" title="3.9 Clean up" toc="3.9 Clean up">
+<Block id="im-cleanup" title="3.10 Clean up" toc="3.10 Clean up">
 
 ```bash
 kind delete cluster --name otel-lab
@@ -791,6 +987,9 @@ This removes everything: the cluster, the loaded images inside it, and all Prome
 - [Prometheus · OTLP receiver (HTTP API)](https://prometheus.io/docs/prometheus/latest/querying/api/#otlp-receiver), [configuration `otlp` block](https://prometheus.io/docs/prometheus/latest/configuration/configuration/) and [prometheus-community/prometheus chart](https://github.com/prometheus-community/helm-charts/tree/main/charts/prometheus)
 - [Loki · Ingesting logs with the OpenTelemetry Collector](https://grafana.com/docs/loki/latest/send-data/otel/), [Modify default OpenTelemetry labels](https://grafana.com/docs/loki/latest/get-started/labels/modify-default-labels/), [Send data (clients)](https://grafana.com/docs/loki/latest/send-data/)
 - [grafana-community/helm-charts (Loki and Grafana charts)](https://github.com/grafana-community/helm-charts) and [grafana/helm-charts migration notice](https://github.com/grafana/helm-charts/blob/main/charts/grafana/README.md)
+- [OpenTelemetry · Java agent declarative configuration](https://opentelemetry.io/docs/zero-code/java/agent/declarative-configuration/), [SDK declarative configuration](https://opentelemetry.io/docs/languages/sdk-configuration/declarative-configuration/) and [configuration schema (views)](https://github.com/open-telemetry/opentelemetry-configuration)
+- [Collector filter processor (v0.163.0)](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/v0.163.0/processor/filterprocessor/README.md)
+- [Prometheus · HTTP API (series, TSDB stats)](https://prometheus.io/docs/prometheus/latest/querying/api/)
 - [Spring Boot · Logging (`logging.threshold.console`)](https://docs.spring.io/spring-boot/reference/features/logging.html)
 - [Elastic · Filebeat outputs](https://www.elastic.co/docs/reference/beats/filebeat/configuring-output)
 - [notification-service (Practical Book)](/practical/notification-service/README.md) and [its Docker image](/practical/docker/notification-service/README.md)
