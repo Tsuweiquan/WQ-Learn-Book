@@ -1,4 +1,4 @@
-import { ChevronRight } from "@gravity-ui/icons";
+import { ArrowUpRightFromSquare, ChevronRight } from "@gravity-ui/icons";
 import { Card, Chip, Link } from "@heroui/react";
 import type { ReactNode } from "react";
 import { Link as RouterLink } from "react-router";
@@ -98,12 +98,37 @@ const RULES = [
   },
 ];
 
+const READS = [
+  {
+    title: "The Pragmatic Engineer",
+    by: "Gergely Orosz · Substack",
+    kind: "Newsletter",
+    href: "https://newsletter.pragmaticengineer.com/",
+    body: "Big Tech and startups, from the inside. Written for software engineers, AI engineers and engineering leaders.",
+  },
+  {
+    title: "Site Reliability Engineering, 2nd Edition",
+    by: "Google SRE · book",
+    kind: "Book",
+    href: "https://sre.google/books/",
+    body: "A completely rewritten edition of the SRE book: Google's current SRE practices, cloud reliability and the impact of AI. The same page links the first edition and the SRE Workbook to read online.",
+  },
+  {
+    title: "CNCF Landscape",
+    by: "Cloud Native Computing Foundation",
+    kind: "Reference",
+    href: "https://landscape.cncf.io/",
+    body: "A map of cloud native projects and products, grouped by category. Check what exists and what competes before picking a tool.",
+  },
+];
+
 const SECTIONS = [
   { id: "method", label: "1. Learning method" },
   { id: "topics", label: "2. Topic index" },
   { id: "practical", label: "3. Practical book" },
-  { id: "template", label: "4. Page template" },
-  { id: "rules", label: "5. House rules" },
+  { id: "reads", label: "4. Good reads" },
+  { id: "template", label: "5. Page template" },
+  { id: "rules", label: "6. House rules" },
 ];
 
 function SectionHeading({ children }: { children: ReactNode }) {
@@ -234,8 +259,36 @@ export function HomePage() {
           </RouterLink>
         </section>
 
+        <section id="reads" className="grid gap-5">
+          <SectionHeading>4. Good reads</SectionHeading>
+          <p className="max-w-[65ch] text-muted">Sources to keep up to date between topics.</p>
+          <div className="grid gap-3.5 md:grid-cols-3">
+            {READS.map((read) => (
+              <Card key={read.href} className="gap-3 p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <h3 className="text-[17px] leading-snug font-bold">{read.title}</h3>
+                  <Chip size="sm" variant="secondary" className="flex-none font-mono">
+                    {read.kind}
+                  </Chip>
+                </div>
+                <p className="font-mono text-xs text-muted">{read.by}</p>
+                <p className="flex-1 text-base text-muted">{read.body}</p>
+                <Link
+                  href={read.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-fit text-sm font-semibold text-accent"
+                >
+                  {new URL(read.href).hostname}
+                  <ArrowUpRightFromSquare className="ms-1 inline size-3.5" />
+                </Link>
+              </Card>
+            ))}
+          </div>
+        </section>
+
         <section id="template" className="grid gap-5">
-          <SectionHeading>4. Page template</SectionHeading>
+          <SectionHeading>5. Page template</SectionHeading>
           <p className="max-w-[65ch] text-muted">
             Every topic page follows this exact outline, so any page can be skimmed the same way.
           </p>
@@ -255,7 +308,7 @@ export function HomePage() {
         </section>
 
         <section id="rules" className="grid gap-5">
-          <SectionHeading>5. House rules</SectionHeading>
+          <SectionHeading>6. House rules</SectionHeading>
           <div className="grid gap-3.5 md:grid-cols-2">
             {RULES.map((rule) => (
               <Card key={rule.title} variant="secondary" className="gap-1.5">
