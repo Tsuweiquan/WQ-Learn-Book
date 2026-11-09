@@ -10,7 +10,7 @@ tags: [OpenTelemetry, Java, KinD, Prometheus, Loki, Grafana, Helm]
 ---
 
 <Muted>
-Versions: kind v0.33.0, kubectl v1.37.2, Helm v4.3.1, OTel Java agent 2.33.1. Charts: `open-telemetry/opentelemetry-collector` 0.178.2 (collector-contrib 0.163.2), `prometheus-community/prometheus` 29.40.3 (Prometheus v3.15.1), `grafana-community/loki` 20.2.1 (Loki 3.7.9), `grafana-community/grafana` 14.3.1 (Grafana 13.3.0). The app is your [notification-service](/practical/notification-service/README.md) from the Practical Book, unchanged.
+Versions: kind v0.33.0, kubectl v1.37.2, Helm v4.3.1, OTel Java agent 2.33.1. Charts: `open-telemetry/opentelemetry-collector` 0.178.2 (collector-contrib 0.163.2), `prometheus-community/prometheus` 29.40.3 (Prometheus v3.15.1), `grafana-community/loki` 20.2.1 (Loki 3.7.9), `grafana-community/grafana` 14.3.1 (Grafana 13.3.0). The app is your [notification-service](/practical/apps/notification-service/README.md) from the Practical Book, unchanged.
 </Muted>
 
 <Note title="What was tested, and what wasn't">
@@ -309,7 +309,7 @@ Client Version: v1.37.2
 v4.3.1+gc0d08d0
 ```
 
-For the app you also need JDK 25, or Docker to build it, as in the [notification-service README](/practical/notification-service/README.md).
+For the app you also need JDK 25, or Docker to build it, as in the [notification-service README](/practical/apps/notification-service/README.md).
 
 </Block>
 
@@ -618,10 +618,10 @@ kubectl -n observability rollout status deploy/otel-collector-opentelemetry-coll
 
 <Block id="im-app" title="3.5 Build the app image and load it into KinD" toc="3.5 Build and load the image">
 
-Build your jar and base image exactly as the Practical Book describes ([app README](/practical/notification-service/README.md), [image README](/practical/docker/notification-service/README.md)). From `wq_practical_book/`:
+Build your jar and base image exactly as the Practical Book describes ([app README](/practical/apps/notification-service/README.md), [image README](/practical/docker/notification-service/README.md)). From `wq_practical_book/`:
 
 ```bash
-(cd notification-service && ./mvnw clean package)
+(cd apps/notification-service && ./mvnw clean package)
 docker build -f docker/notification-service/Dockerfile -t notification-service:1.0.0 .
 ```
 
@@ -992,7 +992,7 @@ This removes everything: the cluster, the loaded images inside it, and all Prome
 - [Prometheus · HTTP API (series, TSDB stats)](https://prometheus.io/docs/prometheus/latest/querying/api/)
 - [Spring Boot · Logging (`logging.threshold.console`)](https://docs.spring.io/spring-boot/reference/features/logging.html)
 - [Elastic · Filebeat outputs](https://www.elastic.co/docs/reference/beats/filebeat/configuring-output)
-- [notification-service (Practical Book)](/practical/notification-service/README.md) and [its Docker image](/practical/docker/notification-service/README.md)
+- [notification-service (Practical Book)](/practical/apps/notification-service/README.md) and [its Docker image](/practical/docker/notification-service/README.md)
 
 </Block>
 

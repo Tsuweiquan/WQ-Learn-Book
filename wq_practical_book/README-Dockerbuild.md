@@ -1,6 +1,6 @@
 # notification-service Docker image
 
-[`docker/notification-service/Dockerfile`](docker/notification-service/Dockerfile) builds the image for the [notification-service](notification-service/README.md) app. The image copies in a jar you've already built and runs it on Java 25.
+[`docker/notification-service/Dockerfile`](docker/notification-service/Dockerfile) builds the image for the [notification-service](apps/notification-service/README.md) app. The image copies in a jar you've already built and runs it on Java 25.
 
 The image uses the distroless base `gcr.io/distroless/java25-debian13:nonroot`, so:
 
@@ -12,13 +12,13 @@ The image uses the distroless base `gcr.io/distroless/java25-debian13:nonroot`, 
 
 The `Dockerfile` doesn't compile anything, so build the jar first. Do this again whenever the code changes, or the image will contain the old jar.
 
-From `wq_practical_book/notification-service/`:
+From `wq_practical_book/apps/notification-service/`:
 
 ```bash
 ./mvnw clean package
 ```
 
-If you don't have JDK 25, use the [Docker build command](notification-service/README.md#build-and-run-with-docker) in the app's README instead.
+If you don't have JDK 25, use the [Docker build command](apps/notification-service/README.md#build-and-run-with-docker) in the app's README instead.
 
 Then build the image from `wq_practical_book/`, because the build needs to see both this folder and the jar:
 
