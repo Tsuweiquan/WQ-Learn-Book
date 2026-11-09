@@ -1,0 +1,85 @@
+name: notification-service
+
+# Builds the app, builds its image and loads the image into the local KinD cluster.
+# Runs on the self-hosted runner (homepc), because that machine has the KinD cluster.
+#
+# Runner prerequisites (one-time, on homepc):
+#   - JDK 25 on PATH (./mvnw downloads Maven itself)
+#   - Docker, with the runner user in the docker group:
+#       sudo usermod -aG docker gh-runner
+#       sudo systemctl restart actions.runner.Tsuweiquan-WQ-Learn-Book.homepc.service
+#   - kind on PATH and a cluster named "kind" (node container kind-control-plane)
+#
+# Only push and manual runs trigger it, never pull_request: this is a public repo, and a
+# pull_request trigger would let a fork's code run on the home machine.
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - wq_practical_book/apps/notification-service/**
+      - wq_practical_book/docker/notification-service/**
+      - .github/workflows/notification-service.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One run at a time per branch. A newer push cancels the older run.
+concurrency:
+  group: notification-service-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  APP_DIR: wq_practical_book/apps/notification-service
+  IMAGE: notification-service
+  KIND_CLUSTER: kind
+
+jobs:
+  build-and-load:
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Strip -SNAPSHOT from the version
+        working-directory: ${{ env.APP_DIR }}
+        # Only changes the pom in this checkout. Nothing is committed back.
+        run: |
+          ./mvnw -B -q org.codehaus.mojo:versions-maven-plugin:2.23.0:set \
+            -DremoveSnapshot -DgenerateBackupPoms=false
+          VERSION=$(./mvnw -B -q org.apache.maven.plugins:maven-help-plugin:3.5.1:evaluate \
+            -Dexpression=project.version -DforceStdout)
+          if [ -z "$VERSION" ] || [[ "$VERSION" == *-SNAPSHOT ]]; then
+            echo "::error::Unexpected version '$VERSION'"
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "Version: $VERSION"
+
+      - name: Build the app (compile, test, package)
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          ./mvnw -B clean package
+          ls -l "target/${IMAGE}-${VERSION}.jar"
+
+      - name: Build the image
+        working-directory: wq_practical_book
+        run: |
+          docker build -f docker/notification-service/Dockerfile \
+            --build-arg APP_VERSION="$VERSION" \
+            -t "${IMAGE}:${VERSION}" .
+
+      - name: Check the image is on the runner
+        run: |
+          docker image ls "${IMAGE}:${VERSION}"
+          docker image inspect "${IMAGE}:${VERSION}" --format 'id={{.Id}} created={{.Created}}'
+
+      - name: Load the image into KinD
+        run: kind load docker-image "${IMAGE}:${VERSION}" --name "$KIND_CLUSTER"
+
+      - name: Check the image is in the KinD node
+        # No -it: the runner has no TTY.
+        run: |
+          docker exec "${KIND_CLUSTER}-control-plane" crictl images \
+            | grep -E "${IMAGE}[[:space:]]+${VERSION}[[:space:]]"
