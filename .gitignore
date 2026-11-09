@@ -1,3 +1,6 @@
 node_modules/
 dist/
 target/
+
+# Self-hosted GitHub Actions runner: holds the runner's private key (.credentials*)
+actions-runner/

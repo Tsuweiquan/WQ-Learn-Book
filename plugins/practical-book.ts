@@ -8,7 +8,7 @@ const VIRTUAL_ID = "virtual:practical-files";
 const RESOLVED_ID = `\0${VIRTUAL_ID}`;
 
 // Build output and generated wrapper scripts: committed or not, they aren't the setup.
-const SKIP = new Set(["target", "node_modules", ".git", "mvnw", "mvnw.cmd"]);
+const SKIP = new Set(["target", "node_modules", ".git", "mvnw", "mvnw.cmd", "actions-runner"]);
 
 const LANG_BY_EXTENSION: Record<string, string> = { tpl: "yaml", yml: "yaml" };
 

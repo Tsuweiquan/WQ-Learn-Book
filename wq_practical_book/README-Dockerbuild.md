@@ -1,6 +1,6 @@
 # notification-service Docker image
 
-This folder holds the `Dockerfile` for the [notification-service](../../notification-service/README.md) app. The image copies in a jar you've already built and runs it on Java 25.
+[`docker/notification-service/Dockerfile`](docker/notification-service/Dockerfile) builds the image for the [notification-service](notification-service/README.md) app. The image copies in a jar you've already built and runs it on Java 25.
 
 The image uses the distroless base `gcr.io/distroless/java25-debian13:nonroot`, so:
 
@@ -18,12 +18,21 @@ From `wq_practical_book/notification-service/`:
 ./mvnw clean package
 ```
 
-If you don't have JDK 25, use the [Docker build command](../../notification-service/README.md#build-and-run-with-docker) in the app's README instead.
+If you don't have JDK 25, use the [Docker build command](notification-service/README.md#build-and-run-with-docker) in the app's README instead.
 
 Then build the image from `wq_practical_book/`, because the build needs to see both this folder and the jar:
 
 ```bash
+cd /home/user/wq_learn_book/wq_practical_book
+
 docker build -f docker/notification-service/Dockerfile -t notification-service:1.0.0 .
+```
+
+Docker load into Kind
+```bash
+kind load docker-image notification-service:1.0.0
+# Verify if image is loaded into KinD
+docker exec -it kind-control-plane crictl images | grep notification-service
 ```
 
 The build ends with:
