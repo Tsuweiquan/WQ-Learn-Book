@@ -31,6 +31,8 @@ public class NotificationService {
     }
 
     public long sentCount() {
-        return sent.get();
+        long total = sent.get();
+        log.debug("Count requested, total sent={}", total);
+        return total;
     }
 }
