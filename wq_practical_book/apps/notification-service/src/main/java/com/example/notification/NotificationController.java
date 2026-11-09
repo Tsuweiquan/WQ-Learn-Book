@@ -5,6 +5,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * REST API: {@code POST /notifications} sends one notification and
+ * {@code GET /notifications/count} returns how many have been sent.
+ */
 @RestController
 @RequestMapping("/notifications")
 public class NotificationController {
