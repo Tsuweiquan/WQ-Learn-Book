@@ -1,0 +1,9 @@
+# Used by .github/workflows/helm-lint.yml: turns on the optional templates so CI renders
+# and validates them too. Not meant for a real install.
+ingress:
+  enabled: true
+autoscaling:
+  enabled: true
+  targetMemoryUtilizationPercentage: 80
+httpRoute:
+  enabled: true

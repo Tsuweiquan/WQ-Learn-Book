@@ -1,0 +1,76 @@
+name: helm-lint
+
+# Lints and renders every Helm chart under wq_practical_book/helm/ and validates the
+# rendered manifests against the Kubernetes (and CRD) schemas. Fails on any problem.
+#
+# For each chart it checks the default values, plus each ci/*-values.yaml in the chart
+# (the chart-testing convention), so templates that are off by default get rendered too.
+#
+# Runs on GitHub-hosted runners, so it's safe to run on pull requests from forks.
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - wq_practical_book/helm/**
+      - .github/workflows/helm-lint.yml
+  pull_request:
+    paths:
+      - wq_practical_book/helm/**
+      - .github/workflows/helm-lint.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: helm-lint-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CHARTS_DIR: wq_practical_book/helm
+  KUBECONFORM_IMAGE: ghcr.io/yannh/kubeconform:v0.8.0
+  # Schemas for CRDs such as Gateway API's HTTPRoute.
+  CRD_SCHEMAS: https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: azure/setup-helm@v5
+        with:
+          version: v4.3.1
+
+      - name: Lint, render and validate each chart
+        run: |
+          set -uo pipefail
+          failed=0
+          fail() { echo "::error file=$1::$2"; failed=1; }
+
+          for chart in $(find "$CHARTS_DIR" -name Chart.yaml -not -path '*/charts/*' -exec dirname {} \; | sort); do
+            echo "::group::$chart"
+            # Default values first, then every ci/*-values.yaml in the chart.
+            for values in "" $(ls "$chart"/ci/*-values.yaml 2>/dev/null); do
+              label="${values:-default values}"
+              args=()
+              [ -n "$values" ] && args=(-f "$values")
+
+              echo "--- helm lint --strict ($label)"
+              helm lint --strict "$chart" "${args[@]}" \
+                || fail "$chart/Chart.yaml" "helm lint failed for $chart ($label)"
+
+              echo "--- helm template | kubeconform ($label)"
+              if ! helm template ci-release "$chart" "${args[@]}" > rendered.yaml; then
+                fail "$chart/Chart.yaml" "helm template failed for $chart ($label)"
+                continue
+              fi
+              docker run --rm -i "$KUBECONFORM_IMAGE" -strict -summary -output text \
+                  -schema-location default -schema-location "$CRD_SCHEMAS" < rendered.yaml \
+                || fail "$chart/Chart.yaml" "rendered manifests are invalid for $chart ($label)"
+            done
+            echo "::endgroup::"
+          done
+          exit $failed

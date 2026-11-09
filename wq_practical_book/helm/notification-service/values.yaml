@@ -81,23 +81,24 @@ ingress:
 # (see: https://gateway-api.sigs.k8s.io/guides/)
 httpRoute:
   # HTTPRoute enabled.
-  enabled: false
+  enabled: true
   # HTTPRoute annotations.
   annotations: {}
-  # Which Gateways this Route is attached to.
+  # Which Gateways this Route is attached to: the cloud-provider-kind Gateway from
+  # kind/Installing-Gateway-API.md. Its only listener, "default", allows routes from all namespaces.
   parentRefs:
   - name: gateway
-    sectionName: http
-    # namespace: default
-  # Hostnames matching HTTP header.
+    namespace: gateway-infra
+    sectionName: default
+  # Hostnames matching HTTP header. Must fall under the listener's "*.exampledomain.example".
   hostnames:
-  - notification-service.local
+  - notification-service.exampledomain.example
   # List of rules and filters applied.
   rules:
   - matches:
     - path:
         type: PathPrefix
-        value: /headers
+        value: /
   #   filters:
   #   - type: RequestHeaderModifier
   #     requestHeaderModifier:
