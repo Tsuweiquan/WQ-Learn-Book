@@ -74,7 +74,7 @@ Chunks, their vectors and a full-text index live in one Postgres table. A single
 <Pros title="Fits when">
 - Docs grow past what fits in one prompt, or many teams share the store
 - You already run Postgres: backups, access control and SQL filters (team, service, doc type) come for free
-- You need exact identifiers to match, as well as meaning (hybrid search, 2.3)
+- You need exact identifiers to match, as well as meaning (hybrid search, 2.4)
 </Pros>
 <Cons title="Watch out for">
 - Another pipeline to keep fresh (re-ingest on every docs change)
@@ -139,7 +139,65 @@ Dedicated vector databases (Qdrant, Weaviate, Milvus and others) and managed opt
 
 <Part level={2} id="theory" title="Theory">
 
-<Block id="th-embeddings" title="2.1 Embeddings and similarity" toc="2.1 Embeddings">
+<Block id="th-rag" title="2.1 What RAG is, and why it exists" toc="2.1 What RAG is">
+
+**Retrieval-augmented generation (RAG)** means looking up relevant information first, then giving it to the language model together with the question. Anthropic's glossary defines it as "a technique that combines information retrieval with language model generation to improve the accuracy and relevance of the generated text, and to better ground the model's response in evidence."
+
+**Where the name comes from.** Lewis et al. coined the term in 2020, in "Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks". They describe two kinds of memory:
+
+| | Parametric memory | Non-parametric memory |
+| --- | --- | --- |
+| What it is | Knowledge stored in the model's weights during training | A separate, searchable collection of documents |
+| In the paper | A pre-trained seq2seq model | "A dense vector index of Wikipedia, accessed with a pre-trained neural retriever" |
+| In this page's lab | Claude | Your runbooks in pgvector |
+| To update it | Train again | Edit a document and re-ingest |
+
+The paper names the problems RAG addresses. Models' "ability to access and precisely manipulate knowledge is still limited", and "providing provenance for their decisions and updating their world knowledge remain open research problems". It reported that RAG models "generate more specific, diverse and factual language" than the same kind of model without retrieval.
+
+<Muted>
+The paper trained the retriever and the generator together. Today's usual RAG, including this page's, keeps both models fixed and only changes what goes into the prompt. The idea is the same, but nothing is fine-tuned. Anthropic's glossary describes this form: the knowledge base "is passed into the context window", and the data "is retrieved at runtime when a query is sent to the model".
+</Muted>
+
+**The loop, in three steps:**
+
+1. **Retrieve.** Turn the question into a search over your knowledge base, and keep the best few chunks (2.2 to 2.4).
+2. **Augment.** Put those chunks into the prompt next to the question, as `search_result` blocks in this lab (2.5).
+3. **Generate.** The model answers from the chunks, and cites them.
+
+Retrieval can be done by your code before the call (Architecture B), or by the model itself through a tool. The glossary: "the model itself does not necessarily retrieve the data (but can with tool use and a retrieval function)". That's Architecture C.
+
+**Why use it instead of relying on the model alone:**
+
+- **Your knowledge isn't in the model.** Claude was never trained on your runbooks, your ConfigMap names or last week's decision record. The glossary: RAG "allows the model to access and use information beyond its training data, reducing the reliance on memorization".
+- **Knowledge changes.** Updating a document is a `git commit` and a re-ingest, not retraining. That's the paper's "updating world knowledge" problem.
+- **Answers can be checked.** Each claim points to a source, which the paper calls *provenance*. During an incident you can open the cited runbook instead of trusting the answer.
+- **Context is limited and costs money.** Sending only the relevant sections keeps prompts small once the docs outgrow a single prompt. Below roughly 200K tokens, Architecture A is simpler.
+
+**RAG compared with the alternatives:**
+
+| Approach | How knowledge gets in | Updating | Cites sources | Fits |
+| --- | --- | --- | --- | --- |
+| Model alone | Training data only | New model release | No | General knowledge |
+| Fine-tuning | Changed weights | Train again | No | Changing style, format or behaviour |
+| Whole corpus in the prompt (A) | Context window | Edit the files | Yes | Small knowledge bases |
+| **RAG** (B, C) | Retrieved chunks in the context window | Re-ingest the changed files | Yes | Large or growing knowledge bases |
+
+<Muted>
+The fine-tuning row is the paper's parametric-memory problem stated generally: knowledge in weights is hard to update and gives no provenance. Neither source on this page compares RAG with fine-tuning for a specific model, and the fine-tuning "Fits" cell is common practice, not taken from them.
+</Muted>
+
+**Where RAG goes wrong.** The glossary: "the effectiveness of RAG depends on the quality and relevance of the external knowledge base and the knowledge that is retrieved at runtime." Most failures happen before the model sees anything:
+
+- **Retrieval misses the right chunk.** The model never sees the answer. Exact names are a common case (`otel-agent-config` in 3.5), and that's what hybrid search (2.4) fixes.
+- **A chunk lost its meaning when split off.** A section called "Fix" with no runbook name. Context in front of each chunk (2.3) fixes this. Anthropic's Contextual Retrieval reduced failures by up to 67%.
+- **The document is wrong or stale.** RAG then makes the model confidently wrong, with a citation (2.6).
+- **Too much or irrelevant context.** Answers become vague. Keep the top few chunks, and add a reranker if needed.
+
+So **measure retrieval separately** (`eval.py`, 3.5). If the right chunk isn't retrieved, no prompt or model can fix the answer.
+
+</Block>
+
+<Block id="th-embeddings" title="2.2 Embeddings and similarity" toc="2.2 Embeddings">
 
 An **embedding** turns text into a vector of numbers so that texts with similar meaning end up close together. Anthropic's Embeddings page: "Text embeddings are numerical representations of text that let you measure semantic similarity." Search then becomes "find the stored vectors nearest to the question's vector". The lab uses cosine distance, pgvector's `<=>` operator.
 
@@ -162,7 +220,7 @@ Its model card loads it with `trust_remote_code=True`, which executes Python cod
 
 </Block>
 
-<Block id="th-chunking" title="2.2 Chunking, and why chunks need context" toc="2.2 Chunking with context">
+<Block id="th-chunking" title="2.3 Chunking, and why chunks need context" toc="2.3 Chunking with context">
 
 Long documents are split, because a whole runbook is one blurry vector, and because only the relevant part should reach the model. But a chunk on its own can lose its meaning. Anthropic's example: "The company's revenue grew by 3% over the previous quarter." Which company? Which quarter? A runbook section titled "Fix" has the same problem.
 
@@ -177,7 +235,7 @@ Long documents are split, because a whole runbook is one blurry vector, and beca
 
 </Block>
 
-<Block id="th-hybrid" title="2.3 Hybrid search: meaning plus exact words" toc="2.3 Hybrid search">
+<Block id="th-hybrid" title="2.4 Hybrid search: meaning plus exact words" toc="2.4 Hybrid search">
 
 Anthropic's post: embedding models "can miss crucial exact matches", for example an error code like "TS-999". BM25 and other keyword methods catch those. pgvector's README recommends "Postgres full-text search for hybrid search", combined with **Reciprocal Rank Fusion (RRF)**. RRF sums `1 / (k + rank)` from each list (`k = 60` in pgvector's example), so a chunk ranked well by both methods wins.
 
@@ -196,7 +254,7 @@ Postgres's `ts_rank_cd` is not BM25, but it plays the same keyword role in this 
 
 </Block>
 
-<Block id="th-citations" title="2.4 Grounded answers: search_result blocks and citations" toc="2.4 Citations">
+<Block id="th-citations" title="2.5 Grounded answers: search_result blocks and citations" toc="2.5 Citations">
 
 Anthropic's **Search results** feature exists for RAG. You pass each retrieved chunk as a content block:
 
@@ -217,7 +275,7 @@ Anthropic's **Search results** feature exists for RAG. You pass each retrieved c
 
 </Block>
 
-<Block id="th-ops" title="2.5 Keeping it useful: freshness, trust and measurement" toc="2.5 Freshness, trust, evals">
+<Block id="th-ops" title="2.6 Keeping it useful: freshness, trust and measurement" toc="2.6 Freshness, trust, evals">
 
 <Grid>
 <InfoCard title="Docs live in git, the vector DB is a cache">
@@ -242,7 +300,7 @@ Vectors from different models (or dimensions) can't be compared. Re-embed everyt
 
 </Block>
 
-<Block id="th-proscons" title="2.6 Problems solved, pros and cons" toc="2.6 Pros and cons">
+<Block id="th-proscons" title="2.7 Problems solved, pros and cons" toc="2.7 Pros and cons">
 
 **Problems this solves:** knowledge stuck in people's heads during incidents, assistants that guess instead of reading your runbooks, answers nobody can verify, and context limits once documentation grows.
 
@@ -826,6 +884,8 @@ The embedding model stays in `~/.cache/huggingface` until you delete it.
 
 <Block id="refs" title="References">
 
+- [Lewis et al. (2020) · Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks](https://arxiv.org/abs/2005.11401)
+- [Anthropic · Glossary: RAG](https://platform.claude.com/docs/en/about-claude/glossary)
 - [Anthropic · Embeddings (Voyage AI models)](https://platform.claude.com/docs/en/build-with-claude/embeddings)
 - [Anthropic · Search results (citations for RAG)](https://platform.claude.com/docs/en/build-with-claude/search-results) and [Citations](https://platform.claude.com/docs/en/build-with-claude/citations)
 - [Anthropic · Introducing Contextual Retrieval](https://www.anthropic.com/news/contextual-retrieval)
