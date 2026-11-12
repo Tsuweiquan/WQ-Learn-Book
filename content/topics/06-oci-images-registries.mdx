@@ -10,7 +10,7 @@ tags: [OCI, Docker, Registry, crane, ORAS, Helm]
 ---
 
 <Muted>
-Written against image-spec v1.1.1, distribution-spec v1.1.1 and runtime-spec v1.3.0 (the latest releases of each). Lab tools: Docker Engine 29.9.2, `registry:3` (distribution v3.1.2), zot v2.1.23, crane v0.22.1, ORAS v1.3.6, Helm v4.3.1. Every output block in Part 3 is from a run in this session, using your [notification-service](/practical/docker/notification-service/README.md) image.
+Written against image-spec v1.1.1, distribution-spec v1.1.1 and runtime-spec v1.3.0 (the latest releases of each). Lab tools: Docker Engine 29.9.2, `registry:3` (distribution v3.1.2), zot v2.1.23, crane v0.22.1, ORAS v1.3.6, Helm v4.3.1. Every output block in Part 3 is from a run in this session, using your [notification-service](/practical/README-Dockerbuild.md) image.
 </Muted>
 
 <Part level={1} id="arch" title="Architecture examples" toc="Architecture">
@@ -235,7 +235,7 @@ A runtime receives a **filesystem bundle**: a directory with `config.json` ("Thi
 <Part level={3} id="impl" title="Implementation">
 
 <Muted>
-Needs Docker on Ubuntu and your `notification-service:1.0.0` image (built as in the [image README](/practical/docker/notification-service/README.md)). Digests in your run will differ, except for content that is byte-identical, such as the empty descriptor `sha256:44136fa3…`.
+Needs Docker on Ubuntu and your `notification-service:1.0.0` image (built as in the [image README](/practical/README-Dockerbuild.md)). Digests in your run will differ, except for content that is byte-identical, such as the empty descriptor `sha256:44136fa3…`.
 </Muted>
 
 <Block id="im-tools" title="3.1 Install the tools" toc="3.1 Tools">

@@ -618,7 +618,7 @@ kubectl -n observability rollout status deploy/otel-collector-opentelemetry-coll
 
 <Block id="im-app" title="3.5 Build the app image and load it into KinD" toc="3.5 Build and load the image">
 
-Build your jar and base image exactly as the Practical Book describes ([app README](/practical/apps/notification-service/README.md), [image README](/practical/docker/notification-service/README.md)). From `wq_practical_book/`:
+Build your jar and base image exactly as the Practical Book describes ([app README](/practical/apps/notification-service/README.md), [image README](/practical/README-Dockerbuild.md)). From `wq_practical_book/`:
 
 ```bash
 (cd apps/notification-service && ./mvnw clean package)
@@ -992,7 +992,7 @@ This removes everything: the cluster, the loaded images inside it, and all Prome
 - [Prometheus · HTTP API (series, TSDB stats)](https://prometheus.io/docs/prometheus/latest/querying/api/)
 - [Spring Boot · Logging (`logging.threshold.console`)](https://docs.spring.io/spring-boot/reference/features/logging.html)
 - [Elastic · Filebeat outputs](https://www.elastic.co/docs/reference/beats/filebeat/configuring-output)
-- [notification-service (Practical Book)](/practical/apps/notification-service/README.md) and [its Docker image](/practical/docker/notification-service/README.md)
+- [notification-service (Practical Book)](/practical/apps/notification-service/README.md) and [its Docker image](/practical/README-Dockerbuild.md)
 
 </Block>
 
