@@ -1,4 +1,4 @@
-import { ArrowUpRightFromSquare, File, Folder } from "@gravity-ui/icons";
+import { ArrowUpRightFromSquare, ChevronRight, File, Folder } from "@gravity-ui/icons";
 import { Card, Link } from "@heroui/react";
 import type { MDXComponents } from "mdx/types";
 import { Children, isValidElement, useMemo, type ComponentProps, type ReactNode } from "react";
@@ -21,20 +21,36 @@ import { NotFoundPage } from "./NotFoundPage";
 
 const tree = buildTree();
 
-function FolderItems({ folder, current }: { folder: TreeFolder; current?: string }) {
+// Top-level folders start open; deeper ones start closed unless they hold the current file.
+function FolderItems({
+  folder,
+  current,
+  parent = "",
+}: {
+  folder: TreeFolder;
+  current?: string;
+  parent?: string;
+}) {
   return (
     <ul className="grid gap-0.5">
-      {folder.folders.map((child) => (
-        <li key={child.name} className="grid min-w-0 gap-0.5">
-          <span className="flex items-start gap-1.5 py-0.5 text-muted">
-            <Folder className="mt-0.5 flex-none" />
-            <span className="min-w-0 wrap-anywhere">{child.name}</span>
-          </span>
-          <div className="ms-1.5 border-s border-border ps-1.5">
-            <FolderItems folder={child} current={current} />
-          </div>
-        </li>
-      ))}
+      {folder.folders.map((child) => {
+        const path = parent ? `${parent}/${child.name}` : child.name;
+        const open = !parent || Boolean(current?.startsWith(`${path}/`));
+        return (
+          <li key={child.name} className="grid min-w-0 gap-0.5">
+            <details open={open}>
+              <summary className="flex cursor-pointer list-none items-start gap-1.5 rounded-md px-1 py-0.5 text-muted hover:bg-sky">
+                <ChevronRight className="folder-chevron mt-0.5 size-3 flex-none transition-transform" />
+                <Folder className="mt-0.5 flex-none" />
+                <span className="min-w-0 wrap-anywhere">{child.name}</span>
+              </summary>
+              <div className="ms-2.5 mt-0.5 border-s border-border ps-1.5">
+                <FolderItems folder={child} current={current} parent={path} />
+              </div>
+            </details>
+          </li>
+        );
+      })}
       {folder.files.map((file) => (
         <li key={file.path} className="min-w-0">
           <RouterLink

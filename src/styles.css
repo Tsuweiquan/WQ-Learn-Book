@@ -134,6 +134,13 @@
     font-size: 1.0625rem;
     font-weight: 700;
   }
+  /* Practical Book file tree: <details> folders with a chevron instead of the native marker. */
+  nav[aria-label="Files"] summary::-webkit-details-marker {
+    display: none;
+  }
+  nav[aria-label="Files"] details[open] > summary > .folder-chevron {
+    transform: rotate(90deg);
+  }
   .checklist ul {
     list-style: none;
     padding-left: 0;
