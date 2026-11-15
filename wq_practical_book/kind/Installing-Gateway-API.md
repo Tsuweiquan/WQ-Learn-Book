@@ -46,7 +46,7 @@ spec:
   gatewayClassName: cloud-provider-kind
   listeners:
   - name: default
-    hostname: "*.exampledomain.example"
+    hostname: "*.internal.kind.test"
     port: 80
     protocol: HTTP
     allowedRoutes:
@@ -61,6 +61,12 @@ kubectl get gateway -n gateway-infra gateway
 NAME      CLASS                 ADDRESS      PROGRAMMED   AGE
 gateway   cloud-provider-kind   172.18.0.3   True         5m6s
 ```
+
+## 3.5 Update local DNS to resolve internal DNS
+```bash
+echo "172.18.128.0 notification-service.internal.kind.test" | sudo tee -a /etc/hosts
+```
+
 
 ## 4. Demo app and HTTPRoute
 
@@ -115,7 +121,7 @@ spec:
   parentRefs:
   - name: gateway
     namespace: gateway-infra
-  hostnames: ["some.exampledomain.example"]
+  hostnames: ["some.internal.kind.test"]
   rules:
   - matches:
     - path: { type: PathPrefix, value: / }
@@ -129,13 +135,13 @@ EOF
 
 ```bash
 GW_ADDR=$(kubectl get gateway -n gateway-infra gateway -o jsonpath='{.status.addresses[0].value}')
-curl --resolve some.exampledomain.example:80:${GW_ADDR} http://some.exampledomain.example
+curl --resolve some.internal.kind.test:80:${GW_ADDR} http://some.internal.kind.test
 ```
 
 ```text
 {
  "path": "/",
- "host": "some.exampledomain.example",
+ "host": "some.internal.kind.test",
  "method": "GET",
  ...
  "namespace": "demo",

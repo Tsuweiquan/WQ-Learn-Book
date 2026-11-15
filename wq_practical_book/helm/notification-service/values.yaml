@@ -90,9 +90,9 @@ httpRoute:
   - name: gateway
     namespace: gateway-infra
     sectionName: default
-  # Hostnames matching HTTP header. Must fall under the listener's "*.exampledomain.example".
+  # Hostnames matching HTTP header. Must fall under the listener's "*.internal.kind.test".
   hostnames:
-  - notification-service.exampledomain.example
+  - notification-service.internal.kind.test
   # List of rules and filters applied.
   rules:
   - matches:
