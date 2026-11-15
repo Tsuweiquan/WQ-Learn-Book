@@ -1,0 +1,29 @@
+# prometheus-community/prometheus chart 29.47.2: overrides only.
+# Defaults: helm show values prometheus-community/prometheus --version 29.47.2
+
+server:
+  extraFlags:
+    - web.enable-lifecycle
+    - web.enable-otlp-receiver   # accept OTLP at /api/v1/otlp/v1/metrics
+
+  route:
+    main:
+      enabled: true
+      parentRefs:
+        - name: gateway
+          namespace: gateway-infra
+          sectionName: default
+      hostnames:
+        - prometheus.internal.kind.test
+
+  persistentVolume:
+    enabled: false               # lab: data lives in an emptyDir, gone on pod restart
+
+  retention: "2d"
+
+alertmanager:
+  enabled: false
+prometheus-pushgateway:
+  enabled: false
+prometheus-node-exporter:
+  enabled: true

@@ -22,3 +22,10 @@ config:
       verbosity: "basic"
       # Uncomment below to see OTEL collector logs
       # verbosity: detailed
+    otlp_http/prometheus:
+      # https://prometheus.io/docs/prometheus/latest/querying/api/#otlp-receiver
+      endpoint: "http://prometheus-server.observability.svc.cluster.local:80/api/v1/otlp"
+  service:
+    pipelines:
+      metrics:
+        exporters: [debug, otlp_http/prometheus]

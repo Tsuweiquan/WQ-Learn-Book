@@ -167,3 +167,146 @@ OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
 ```
 
 Compare the two errors: `Connection refused` means nothing is listening at that address. `Connection reset` means something is listening but doesn't understand what was sent.
+
+# Install prometheus to receive the metric from Otel collecto
+
+```bash
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+helm pull prometheus-community/prometheus
+# update the wq_practical_book/Lab/5.otel-metrics/prometheus-values.yaml
+helm upgrade --install prometheus prometheus-community/prometheus --version 29.47.2 -f Lab/5.otel-metrics/prometheus-values.yaml -n observability
+```
+
+Add prometheus.internal.kind.test into /etc/hosts
+```bash
+vim /etc/hosts
+172.18.128.0 prometheus.internal.kind.test
+```
+
+### Error: `prometheus.internal.kind.test` returns 404, notification-service times out
+
+The HTTPRoute looked healthy (`Accepted`, `ResolvedRefs`, Gateway listener `attachedRoutes: 2`), but:
+
+```text
+$ curl -i http://prometheus.internal.kind.test/
+HTTP/1.1 404 Not Found
+server: envoy
+```
+
+`server: envoy` means the request reached the Gateway's proxy and **no route matched**. Envoy's log showed it had lost its controller hours earlier:
+
+```text
+$ docker logs kindccm-gw-d59c713eff5c 2>&1 | grep xds_cluster | tail -1
+... StreamAggregatedResources gRPC config stream to xds_cluster closed since 14959s ago: ... Connection refused
+```
+
+### Resolution
+
+cloud-provider-kind runs in two parts:
+
+| Container | Role | Job |
+| --- | --- | --- |
+| `cloud-provider-kind` | Control plane | Watches Gateways/HTTPRoutes and pushes routes to Envoy over xDS (gRPC) |
+| `kindccm-gw-…` (Envoy) | Data plane | Serves the traffic with the last routes it received |
+
+Envoy is started with the controller's xDS address and port baked in. The `cloud-provider-kind` container restarted 20 s after it had created Envoy, and the new process served xDS on a different port. Envoy kept dialling the old port and **kept serving its last routes** ("fail static"). Those routes had no Prometheus host (→ 404) and still pointed at the Service from before the chart rename (→ timeout). The controller still marked new routes `Accepted`, because it saw them. It just couldn't deliver them.
+
+Fix: delete the Envoy container. The controller recreates it within a minute, with the current xDS port and current routes:
+
+```bash
+docker rm -f kindccm-gw-d59c713eff5c
+docker ps --format '{{.Names}}\t{{.Status}}' | grep kindccm-gw   # new container, "Up N seconds"
+curl -I http://prometheus.internal.kind.test/                    # 302, Location: /query
+```
+
+> **After restarting cloud-provider-kind, delete the `kindccm-gw-*` containers.** If the new Envoy gets a different IP, update `/etc/hosts`.
+
+Takeaway: `Accepted` on an HTTPRoute means the *controller* accepted it, not that the proxy has it. When the status looks fine but traffic doesn't match, check the proxy itself: its log, or Envoy's admin `config_dump` (port 10000), where `last_updated` showed the routes were 4 hours old.
+
+# Last step: Connect the OTEL collector to Prometheus
+
+Update the opentelemetry collector to export OTLP logs to prometheus
+
+```
+config:
+  exporters:
+    debug:
+      verbosity: "basic"
+      # Uncomment below to see OTEL collector logs
+      # verbosity: detailed
+    otlp_http/prometheus:
+      # https://prometheus.io/docs/prometheus/latest/querying/api/#otlp-receiver
+      endpoint: "http://prometheus-server.observability.svc.cluster.local:80/api/v1/otlp"
+  service:
+    pipelines:
+      metrics:
+        exporters: [debug, otlp_http/prometheus]
+
+```
+![alt text](OTEL-Metrics-Prometheus.png)
+
+# Add in custom metrics covered by Micrometer
+
+How to view notifications count?
+
+1. Only metrics created with micrometer will be logged
+```
+    public NotificationService(MeterRegistry registry) {
+        this.sentCounter = Counter.builder("notifications.sent")
+                .description("Number of notifications sent")
+                .register(registry);
+    }
+```
+2. Set the environment variable `OTEL_INSTRUMENTATION_MICROMETER_ENABLED: "true"`
+3. Trigger some post call to see if metrics is collected
+```
+for i in 1 2 3; do curl -X POST http://notification-service.internal.kind.test/notifications\;
+done
+```
+4. Query with `> notifications_sent_total` and see the results.
+
+# Managing duplicate metrics to reduce cardinality 
+
+With both the agent and the Micrometer bridge on, the same JVM and HTTP data arrives from **two sources**. That doubles the series count and makes some queries wrong. Pick one owner per metric family.
+
+Spring Boot registers Micrometer `jvm.*` meters by default. The bridge exports *everything* in Micrometer's registry, not just custom meters, so those meters travel next to the agent's own JVM metrics:
+
+```text
+Micrometer registry ── notifications.sent ─┐
+                    ── jvm.* (Spring)  ────┼─ bridge ─▶ agent ─OTLP─▶ Collector ─▶ Prometheus
+agent's own         ── jvm.* (OTel) ───────┘                         (jvm.* arrives twice)
+```
+
+## Kind 1: same name, two label schemes
+
+```promql
+jvm_memory_used_bytes
+```
+
+| Source | OTel name and unit | Labels |
+| --- | --- | --- |
+| Agent (OTel runtime metrics) | `jvm.memory.used`, unit `By` | `jvm_memory_type`, `jvm_memory_pool_name` |
+| Micrometer, through the bridge | `jvm.memory.used`, unit `bytes` | `area`, `id` |
+
+Both become `jvm_memory_used_bytes`. `sum(jvm_memory_used_bytes)` returns about **2×** the real memory use, because every byte is counted once per source. Dashboards built on it are silently wrong.
+
+## Kind 2: same data, different names
+
+```promql
+{__name__=~"http_server_request.*_count"}
+```
+
+The agent's `http_server_request_duration_seconds_count` and Micrometer's `http_server_requests_seconds_count` count the same requests. The same happens for JVM metrics, for example Micrometer's `jvm_threads_live_threads` against the agent's `jvm_thread_count`.
+
+## Fix: one owner per family
+
+| Family | Owner | How |
+| --- | --- | --- |
+| JVM (`jvm.*`) | Agent | `MANAGEMENT_METRICS_ENABLE_JVM: "false"` in the app's `env` |
+| HTTP | Agent (`http.server.request.duration`, OTel semantic conventions) | `MANAGEMENT_METRICS_ENABLE_HTTP: "false"`. Verified: `http_server_requests_seconds_count` is gone. This also turns off Micrometer's `http.client.requests`, which the agent covers as `http.client.request.duration`. |
+| Custom (`notifications.sent`) | Micrometer, via the bridge | Keep `OTEL_INSTRUMENTATION_MICROMETER_ENABLED: "true"` |
+
+`MANAGEMENT_METRICS_ENABLE_JVM` is the Spring Boot property `management.metrics.enable.jvm`. It switches **off** every Micrometer meter whose name starts with `jvm.`. It's on by default, so set it to `"false"`, not `"true"`. Custom and HTTP meters are not affected.
+
+After `helm upgrade`, `jvm_memory_used_bytes` only has series with `jvm_memory_type` and `jvm_memory_pool_name`. The old Micrometer series disappear from queries after about 5 minutes (Prometheus's staleness window).

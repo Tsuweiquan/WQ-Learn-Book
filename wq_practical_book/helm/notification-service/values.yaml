@@ -170,3 +170,9 @@ env:
   OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf 
   OTEL_TRACES_EXPORTER: none
   OTEL_LOGS_EXPORTER: none
+  # This below will export my app records, notifications.sent metric
+  # Take note this will duplicate JVM and HTTP metrics
+  OTEL_INSTRUMENTATION_MICROMETER_ENABLED: "true"
+  # turn off every mircometer metrics whose name starts with jvm
+  MANAGEMENT_METRICS_ENABLE_JVM: "false"
+  MANAGEMENT_METRICS_ENABLE_HTTP: "false"
