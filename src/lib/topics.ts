@@ -17,7 +17,11 @@ export interface TopicFrontmatter {
   tags: string[];
   /** Slug of the topic this page belongs to, for labs and other subtopics. */
   parent?: string;
+  /** How far the user's own run of the lab got. Shown as a badge; omit if not started. */
+  progress?: TopicProgress;
 }
+
+export type TopicProgress = "partial" | "complete";
 
 export interface Topic extends TopicFrontmatter {
   slug: string;

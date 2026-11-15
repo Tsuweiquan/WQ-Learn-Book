@@ -56,6 +56,7 @@ indexSummary: One line for the home page's topic index
 area: CI/CD
 added: "2026-10-28"          # quoted
 tags: [Kubernetes, GKE]
+progress: partial            # optional: the user's own run of the lab, "partial" or "complete"; shown as a badge
 ---
 ```
 
@@ -65,6 +66,7 @@ Follow the template on the home page and its house rules:
 - `<Part level={2} id="theory" title="Theory">`: what it is, why the industry does it this way, the problems it solves, pros and cons.
 - `<Part level={3} id="impl" title="Implementation">`: runnable code and config, a way to test it on a laptop (kind, docker compose, emulators), expected output, cleanup.
 - A last `<Block id="refs" title="References">` inside Part 3, linking the official docs and sources used.
+- Optional `<Part level={4} id="self" title="Self implementation">`, after Part 3: links the user's own lab notes in `wq_practical_book/Lab/…` (`/practical/Lab/<folder>/README-Setup.md`), with what is done, how their setup differs and the problems hit. Set `progress` to match.
 - Content is sourced, not guessed. Mark anything unverified with `<Note title="Unsure">`.
 
 Inside a Part, each subsection is `<Block id="arch-a" title="1.2 Architecture A · …" toc="1.2 A · …">`. The table of contents is built from Parts and Blocks. `toc` is an optional shorter label.

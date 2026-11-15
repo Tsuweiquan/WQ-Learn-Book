@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { Link as RouterLink } from "react-router";
 
 import { PageFooter } from "../components/PageFooter";
+import { ProgressChip } from "../components/ProgressChip";
 import { formatDate, topicPath, topics } from "../lib/topics";
 
 const LEVELS = [
@@ -234,6 +235,7 @@ export function HomePage() {
                     {t.parent && "↳ "}
                     {t.number} · {t.title}
                   </b>
+                  {t.progress && <ProgressChip progress={t.progress} className="w-fit" />}
                   <small className="text-sm text-muted">{t.indexSummary}</small>
                 </span>
                 <span className="font-mono text-[13px] text-muted">{t.area}</span>

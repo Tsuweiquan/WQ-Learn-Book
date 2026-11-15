@@ -27,6 +27,7 @@
   --l1: #3aa0ff;
   --l2: #22b8c9;
   --l3: #5b7cfa;
+  --l4: #14845a;
   --code-bg: #eaf4ff;
   --code-ink: #12324f;
   --good: #14845a;
@@ -53,6 +54,7 @@
   --l1: #5cb4ff;
   --l2: #3fd0de;
   --l3: #8aa0ff;
+  --l4: #4ade9a;
   --code-bg: #0e2034;
   --code-ink: #d6e9ff;
   --good: #4ade9a;
@@ -69,6 +71,7 @@
   --color-l1: var(--l1);
   --color-l2: var(--l2);
   --color-l3: var(--l3);
+  --color-l4: var(--l4);
   --color-code: var(--code-bg);
   --color-code-ink: var(--code-ink);
   --color-good: var(--good);
@@ -150,6 +153,21 @@
     height: 1rem;
     border: 2px solid var(--l3);
     border-radius: 4px;
+  }
+  /* GFM task items (- [x] / - [ ]): a filled box with a tick when done. */
+  .checklist li.task-list-item input {
+    display: none;
+  }
+  .checklist li.task-list-item:has(input:checked)::before {
+    content: "✓";
+    display: grid;
+    place-items: center;
+    background: var(--l4);
+    border-color: var(--l4);
+    color: var(--background);
+    font-size: 0.7rem;
+    font-weight: 700;
+    line-height: 1;
   }
   .topic-prose :where(:not(pre) > code) {
     font-family: var(--font-mono);

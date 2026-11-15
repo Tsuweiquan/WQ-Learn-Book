@@ -4,6 +4,7 @@ import { useParams } from "react-router";
 
 import { mdxComponents } from "../components/mdx";
 import { PageFooter } from "../components/PageFooter";
+import { ProgressChip } from "../components/ProgressChip";
 import { findTopic, formatDate, topicPath, type Topic } from "../lib/topics";
 import { NotFoundPage } from "./NotFoundPage";
 
@@ -14,7 +15,7 @@ interface TocPart {
   blocks: { id: string; title: string }[];
 }
 
-const DOT: Record<number, string> = { 1: "bg-l1", 2: "bg-l2", 3: "bg-l3" };
+const DOT: Record<number, string> = { 1: "bg-l1", 2: "bg-l2", 3: "bg-l3", 4: "bg-l4" };
 
 // Builds the table of contents from the <Part> and <Block> elements the MDX rendered.
 function useToc(root: RefObject<HTMLElement | null>): TocPart[] {
@@ -96,6 +97,7 @@ function TopicView({ topic }: { topic: Topic }) {
           <h1 className="text-[clamp(32px,6vw,52px)] font-extrabold tracking-[-0.02em]">{topic.title}</h1>
           <p className="max-w-[65ch] text-lg text-muted">{topic.summary}</p>
           <div className="flex flex-wrap gap-2">
+            {topic.progress && <ProgressChip progress={topic.progress} />}
             <Chip size="sm" variant="secondary" className="font-mono">
               Added {formatDate(topic.added)}
             </Chip>

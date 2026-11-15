@@ -1,21 +1,23 @@
 import { Alert, Card, Chip } from "@heroui/react";
 import { Children, isValidElement, type ReactNode } from "react";
 
-type Level = 1 | 2 | 3;
+type Level = 1 | 2 | 3 | 4;
 
 const LEVEL_LABEL: Record<Level, string> = {
   1: "High-level architecture",
   2: "Theory",
   3: "Implementation",
+  4: "Self implementation",
 };
 
 const LEVEL_BORDER: Record<Level, string> = {
   1: "border-l1",
   2: "border-l2",
   3: "border-l3",
+  4: "border-l4",
 };
 
-/** One of the three altitudes of a topic page. `toc` overrides the title in the table of contents. */
+/** One of the three altitudes of a topic page, or Level 4: the user's own run of the lab. `toc` overrides the title in the table of contents. */
 export function Part({
   level,
   id,

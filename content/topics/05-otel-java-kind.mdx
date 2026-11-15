@@ -7,6 +7,7 @@ indexSummary: "KinD on Ubuntu: Java agent → in-cluster collector → Prometheu
 area: Observability
 added: "2026-11-03"
 tags: [OpenTelemetry, Java, KinD, Prometheus, Loki, Grafana, Helm]
+progress: partial
 ---
 
 <Muted>
@@ -19,7 +20,7 @@ KinD **could not run** in the cloud sandbox used to write this page: its kernel 
 1. rendered all four Helm charts and the app manifest with the values below, and schema-checked every resource with kubeconform (33 resources, 0 invalid);
 2. ran the **same images with the configs Helm rendered** in Docker Compose, using network aliases equal to the Kubernetes DNS names, so the app and collector settings were used unchanged.
 
-The data path worked end to end: app → collector → Prometheus and Loki → Grafana. The outputs in 3.7 come from that run. The `kind`, `kubectl` and `helm install` steps themselves were not executed. Run them on your PC and tell me if anything differs.
+The data path worked end to end: app → collector → Prometheus and Loki → Grafana. The outputs in 3.7 come from that run. The `kind`, `kubectl` and `helm install` steps themselves were not executed here. Your own run on a real KinD cluster (metrics only so far) is in [Part 4](#self).
 </Note>
 
 <Part level={1} id="arch" title="Architecture examples" toc="Architecture">
@@ -159,7 +160,7 @@ The app's resource attributes come from `OTEL_RESOURCE_ATTRIBUTES`, filled with 
 4. **Labels:** `job` = `service.namespace/service.name` (`shop/notification-service`), and `instance` = `service.instance.id`. Other resource attributes go into a `target_info` series unless you list them under `otlp.promote_resource_attributes`. This lab promotes `service.namespace`, `deployment.environment.name` and `k8s.namespace.name`. Prometheus's docs warn that `promote_all_resource_attributes` "may result in time series churn and lead to high memory usage".
 
 <Note title="Two HTTP metrics for the same requests">
-With the bridge on, you get both Micrometer's `http_server_requests_seconds_*` and the agent's `http_server_request_duration_seconds_*`. Pick one for dashboards. To drop the Micrometer one, set `MANAGEMENT_METRICS_ENABLE_HTTP_SERVER_REQUESTS=false`. That uses the same Spring per-meter property as the JVM one, but I did not test this one.
+With the bridge on, you get both Micrometer's `http_server_requests_seconds_*` and the agent's `http_server_request_duration_seconds_*`. Pick one for dashboards. To drop the Micrometer one, set `MANAGEMENT_METRICS_ENABLE_HTTP=false`, as [3.8](#im-cardinality) does. In your own run ([Part 4](#self)), this removed `http_server_requests_seconds_*` and left the agent's series. It matches every Micrometer meter starting with `http.`, so it also turns off `http.client.requests`. The agent covers outgoing calls as `http.client.request.duration`.
 </Note>
 
 </Block>
@@ -962,6 +963,8 @@ Cut as early as possible. Level 1 and level 2 stop the data inside the JVM, so i
 | --- | --- |
 | Pod `ErrImageNeverPull` | The image wasn't loaded: `kind load docker-image notification-service:1.0.0-otel --name otel-lab` |
 | No metrics or logs at all | `kubectl -n observability logs deploy/otel-collector-opentelemetry-collector`. Export errors name the failing backend. |
+| App log: `Failed to connect to localhost/…:4318` | No endpoint set: the agent falls back to `localhost:4318`, the pod itself. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to the collector's Service URL. |
+| App log: `HttpExporter` … `Connection reset` | Protocol and port don't match: `http/protobuf` sent to the gRPC port 4317. Use 4318 for `http/protobuf`, or 4317 with `OTEL_EXPORTER_OTLP_PROTOCOL=grpc`. |
 | Collector gets data but Prometheus doesn't | Prometheus must run with `--web.enable-otlp-receiver`: `kubectl -n observability get deploy prometheus-server -o yaml \| grep otlp` |
 | Loki rejects logs as malformed | `allow_structured_metadata` must be true (Loki docs) |
 | `helm template` fails for Loki | Unknown top-level key (20.x schema), or simple-scalable replicas not 0 (see 2.6) |
@@ -993,6 +996,58 @@ This removes everything: the cluster, the loaded images inside it, and all Prome
 - [Spring Boot · Logging (`logging.threshold.console`)](https://docs.spring.io/spring-boot/reference/features/logging.html)
 - [Elastic · Filebeat outputs](https://www.elastic.co/docs/reference/beats/filebeat/configuring-output)
 - [notification-service (Practical Book)](/practical/apps/notification-service/README.md) and [its Docker image](/practical/README-Dockerbuild.md)
+
+</Block>
+
+</Part>
+
+<Part level={4} id="self" title="Self implementation" toc="Self implementation">
+
+<Block id="self-run" title="4.1 My run on KinD" toc="4.1 My run">
+
+My own walkthrough of this lab on a real KinD cluster, with every command, value file and error I hit, is in the Practical Book: **[Lab 5 · Set up OpenTelemetry metrics (README-Setup.md)](/practical/Lab/5.otel-metrics/README-Setup.md)**.
+
+**Status: partially completed.** The metrics path works end to end: app → collector → Prometheus, including the custom `notifications_sent_total` counter. Logs (→ Loki) and traces aren't done yet.
+
+<Checklist>
+
+- [x] Java agent baked into the image, configured with `OTEL_*` env vars from the app's Helm chart
+- [x] OTel Collector in `observability` (`mode: deployment`), metrics pipeline exporting to Prometheus
+- [x] Prometheus with `--web.enable-otlp-receiver`, JVM and HTTP metrics visible
+- [x] Micrometer bridge on for `notifications.sent`; Micrometer `jvm.*` and `http.*` meters off, so each metric has one source
+- [ ] Logs: Logback → agent → collector → Loki
+- [ ] Traces: a traces backend (the collector only has `debug` for traces)
+- [ ] Grafana dashboards
+
+</Checklist>
+
+</Block>
+
+<Block id="self-diff" title="4.2 How my setup differs from this page" toc="4.2 Differences">
+
+| | This page | My run |
+| --- | --- | --- |
+| App namespace | `apps`, plain manifests | `dev`, the app's own Helm chart with an `env` map added to its Deployment template |
+| Collector image | `otel/opentelemetry-collector-contrib` | `otel/opentelemetry-collector` (core), `command.name: otelcol` |
+| Charts | collector 0.178.2, prometheus 29.40.3 | collector 0.178.3, prometheus 29.47.2 (Prometheus v3.16.0) |
+| Collector release / Service | `otel-collector-opentelemetry-collector` | `opentelemetry-collector` (the release name already contains the chart name, so no suffix) |
+| Reaching Prometheus | `kubectl port-forward` | An HTTPRoute on the kind Gateway: `prometheus.internal.kind.test` |
+| Signals | Metrics and logs | Metrics only: `OTEL_TRACES_EXPORTER=none`, `OTEL_LOGS_EXPORTER=none` |
+
+</Block>
+
+<Block id="self-issues" title="4.3 Problems I hit" toc="4.3 Problems hit">
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| `Failed to connect to localhost/…:4318` | No OTLP endpoint set | `OTEL_EXPORTER_OTLP_ENDPOINT` pointing at the collector Service |
+| `HttpExporter` … `Connection reset` | `http/protobuf` sent to port 4317 (gRPC) | Port 4318 |
+| `prometheus.internal.kind.test` → `404` with `server: envoy`, although the HTTPRoute was `Accepted` | First: no `parentRefs` on the route. Then: the cloud-provider-kind controller had restarted, and its Envoy proxy kept serving 4-hour-old routes (xDS `Connection refused` in the Envoy log) | Add `parentRefs`; `docker rm -f` the `kindccm-gw-*` container so the controller recreates it |
+| `jvm_memory_used_bytes` and HTTP request counts arrive twice | The Micrometer bridge exports Spring's `jvm.*` and `http.*` meters next to the agent's own | `MANAGEMENT_METRICS_ENABLE_JVM: "false"`, `MANAGEMENT_METRICS_ENABLE_HTTP: "false"` |
+
+<Tip title="After restarting cloud-provider-kind">
+Delete the `kindccm-gw-*` containers too. An HTTPRoute's `Accepted` status only means the controller saw it, not that Envoy has it.
+</Tip>
 
 </Block>
 
