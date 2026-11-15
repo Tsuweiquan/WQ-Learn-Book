@@ -11,7 +11,7 @@ EXPOSE 8080
 # Source: https://opentelemetry.io/docs/zero-code/java/agent/getting-started/
 ARG OTEL_AGENT_VERSION=2.33.1
 ADD --chmod=644 https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/download/v${OTEL_AGENT_VERSION}/opentelemetry-javaagent.jar /app/opentelemetry-javaagent.jar
-
 ENV JAVA_TOOL_OPTIONS="-javaagent:/app/opentelemetry-javaagent.jar"
 ENV OTEL_SERVICE_NAME="notification-service"
+
 CMD ["/app/app.jar"]

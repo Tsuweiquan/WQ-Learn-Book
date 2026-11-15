@@ -1,0 +1,24 @@
+mode: "deployment"
+
+image:
+  # -- If you want to use the core image `otel/opentelemetry-collector`, you also need to change `command.name` value to `otelcol`.
+  repository: "otel/opentelemetry-collector"
+  pullPolicy: IfNotPresent
+  # -- Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+  # -- When digest is set to a non-empty value, images will be pulled by digest (regardless of tag value).
+  digest: ""
+imagePullSecrets: []
+
+# OpenTelemetry Collector executable
+command:
+  name: "otelcol"
+  extraArgs: []
+
+
+config:
+  exporters:
+    debug:
+      verbosity: "basic"
+      # Uncomment below to see OTEL collector logs
+      # verbosity: detailed
