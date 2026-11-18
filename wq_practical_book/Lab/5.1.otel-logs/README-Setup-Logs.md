@@ -140,6 +140,43 @@ helm upgrade --install otel-agent open-telemetry/opentelemetry-collector --versi
 
 Verify if kube logs are going in
 ```bash
+kubectl -n observability port-forward svc/loki 3100:3100
 
+curl -s http://localhost:3100/loki/api/v1/label/service_name/values | jq
+{
+  "status": "success",
+  "data": [
+    "curl-test",
+    "etcd",
+    "kindnet",
+    "kube-apiserver",
+    "loki",
+    "notification-service",
+    "unknown_service"
+  ]
+}
 
+curl -s http://localhost:3100/loki/api/v1/labels | jq 
+{
+  "status": "success",
+  "data": [
+    "k8s_container_name",
+    "k8s_daemonset_name",
+    "k8s_deployment_name",
+    "k8s_namespace_name",
+    "k8s_pod_name",
+    "k8s_replicaset_name",
+    "k8s_statefulset_name",
+    "pod",
+    "service_instance_id",
+    "service_name",
+    "service_namespace",
+    "stream"
+  ]
+}
+
+curl -sG http://localhost:3100/loki/api/v1/query_range \
+  --data-urlencode 'query={service_name="notification-service", k8s_namespace_name="dev"}' \
+  --data-urlencode 'limit=3' | jq '.data.result[] | {stream, lines: [.values[][1]]}'
+> Logs output
 ```

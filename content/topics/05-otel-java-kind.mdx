@@ -1005,9 +1005,13 @@ This removes everything: the cluster, the loaded images inside it, and all Prome
 
 <Block id="self-run" title="4.1 My run on KinD" toc="4.1 My run">
 
-My own walkthrough of this lab on a real KinD cluster, with every command, value file and error I hit, is in the Practical Book: **[Lab 5 · Set up OpenTelemetry metrics (README-Setup-Metrics.md)](/practical/Lab/5.otel-metrics/README-Setup-Metrics.md)**. Logs are in progress in **[Lab 5.1 · Logs (README-Setup-Logs.md)](/practical/Lab/5.1.otel-logs/README-Setup-Logs.md)**.
+My own walkthrough of this lab on a real KinD cluster, with every command, value file and error I hit, is in the Practical Book:
 
-**Status: partially completed.** The metrics path works end to end: app → collector → Prometheus, including the custom `notifications_sent_total` counter. Logs (→ Loki) and traces aren't done yet.
+- **[Lab 5.0 · Metrics (README-Setup-Metrics.md)](/practical/Lab/5.0.otel-metrics/README-Setup-Metrics.md)**
+- **[Lab 5.1 · Logs (README-Setup-Logs.md)](/practical/Lab/5.1.otel-logs/README-Setup-Logs.md)**
+- **[Lab 5.2 · Grafana (README-Grafana.md)](/practical/Lab/5.2.grafana/README-Grafana.md)**
+
+**Status: partially completed.** Metrics (app → collector → Prometheus, including the custom `notifications_sent_total` counter) and logs (→ Loki, over OTLP and from pod stdout) work end to end, and Grafana queries both. Traces and dashboards aren't done yet.
 
 <Checklist>
 
@@ -1015,9 +1019,11 @@ My own walkthrough of this lab on a real KinD cluster, with every command, value
 - [x] OTel Collector in `observability` (`mode: deployment`), metrics pipeline exporting to Prometheus
 - [x] Prometheus with `--web.enable-otlp-receiver`, JVM and HTTP metrics visible
 - [x] Micrometer bridge on for `notifications.sent`; Micrometer `jvm.*` and `http.*` meters off, so each metric has one source
-- [ ] Logs: Logback → agent → collector → Loki
+- [x] Logs: Logback → agent → collector → Loki (`otlp_http/loki`), with `trace_id` as structured metadata
+- [x] Logs from every pod's stdout: a second collector, `otel-agent` (`mode: daemonset`, `file_log` + `k8s_attributes`), pushing straight to Loki
+- [x] Grafana with Prometheus and Loki data sources, exposed on the kind Gateway
 - [ ] Traces: a traces backend (the collector only has `debug` for traces)
-- [ ] Grafana dashboards
+- [ ] Grafana dashboards, and data sources provisioned in values instead of added in the UI
 
 </Checklist>
 
@@ -1029,10 +1035,13 @@ My own walkthrough of this lab on a real KinD cluster, with every command, value
 | --- | --- | --- |
 | App namespace | `apps`, plain manifests | `dev`, the app's own Helm chart with an `env` map added to its Deployment template |
 | Collector image | `otel/opentelemetry-collector-contrib` | `otel/opentelemetry-collector` (core), `command.name: otelcol` |
-| Charts | collector 0.178.2, prometheus 29.40.3 | collector 0.178.3, prometheus 29.47.2 (Prometheus v3.16.0) |
+| Charts | collector 0.178.2, prometheus 29.40.3, loki 20.2.1, grafana 14.3.1 | collector 0.178.3, prometheus 29.47.2 (Prometheus v3.16.0), loki 21.2.3 (Loki 3.7.10), grafana 14.4.1 |
 | Collector release / Service | `otel-collector-opentelemetry-collector` | `opentelemetry-collector` (the release name already contains the chart name, so no suffix) |
-| Reaching Prometheus | `kubectl port-forward` | An HTTPRoute on the kind Gateway: `prometheus.internal.kind.test` |
-| Signals | Metrics and logs | Metrics only: `OTEL_TRACES_EXPORTER=none`, `OTEL_LOGS_EXPORTER=none` |
+| Reaching Prometheus and Grafana | `kubectl port-forward` | HTTPRoutes on the kind Gateway: `prometheus.internal.kind.test`, `grafana.internal.kind.test` |
+| Signals | Metrics and logs | Metrics over OTLP. App logs went over OTLP first, then switched to `OTEL_LOGS_EXPORTER=none` and collected from stdout by `otel-agent`, so each line is stored once. `OTEL_TRACES_EXPORTER=none` |
+| Log collection | App OTLP only | Also a node agent (`otel/opentelemetry-collector-k8s`, `presets.logsCollection` + `kubernetesAttributes`), so control-plane and third-party pods' logs reach Loki |
+| Loki labels | Four index labels | Loki's defaults, including `k8s_pod_name` and the other `k8s_*` attributes |
+| Grafana admin password | `admin` in values | Chart-generated, read from the `grafana` Secret |
 
 </Block>
 
@@ -1044,6 +1053,10 @@ My own walkthrough of this lab on a real KinD cluster, with every command, value
 | `HttpExporter` … `Connection reset` | `http/protobuf` sent to port 4317 (gRPC) | Port 4318 |
 | `prometheus.internal.kind.test` → `404` with `server: envoy`, although the HTTPRoute was `Accepted` | First: no `parentRefs` on the route. Then: the cloud-provider-kind controller had restarted, and its Envoy proxy kept serving 4-hour-old routes (xDS `Connection refused` in the Envoy log) | Add `parentRefs`; `docker rm -f` the `kindccm-gw-*` container so the controller recreates it |
 | `jvm_memory_used_bytes` and HTTP request counts arrive twice | The Micrometer bridge exports Spring's `jvm.*` and `http.*` meters next to the agent's own | `MANAGEMENT_METRICS_ENABLE_JVM: "false"`, `MANAGEMENT_METRICS_ENABLE_HTTP: "false"` |
+| `loki-0` in CrashLoopBackOff | `commonLabels` set `app.kubernetes.io/part-of: observability`, overwriting the chart's pod label `part-of: memberlist`. The `loki-memberlist` Service matched no pod, and Loki exits when the join fails (`abort_if_cluster_join_fails: true`) | Use a key the chart doesn't own: `stack: observability` |
+| `OTEL_LOGS_EXPORTER: http://…:4318` in the app's values | The variable takes an exporter name, not a URL | `OTEL_LOGS_EXPORTER: otlp`; the URL comes from `OTEL_EXPORTER_OTLP_ENDPOINT` |
+| `{k8s_namespace_name="dev"}` empty although the agent runs | `file_log` uses `start_at: end`, and the app hadn't logged since the agent started | Generate logs (restart the app); check `kubectl logs --since` before blaming the pipeline |
+| `unknown_service` in Loki's `service_name` values | loki-canary pushes its test lines straight to Loki with no `service.name` (`lokiCanary.push: true`) | Expected; disable `lokiCanary` and `test` if unwanted |
 
 <Tip title="After restarting cloud-provider-kind">
 Delete the `kindccm-gw-*` containers too. An HTTPRoute's `Accepted` status only means the controller saw it, not that Envoy has it.
