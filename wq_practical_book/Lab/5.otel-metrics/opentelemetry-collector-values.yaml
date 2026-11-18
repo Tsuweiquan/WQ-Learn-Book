@@ -15,7 +15,7 @@ command:
   name: "otelcol"
   extraArgs: []
 
-
+### This config below is to export OTEL Metrics and Logs to Prometheus and Loki via OTLP HTTP
 config:
   exporters:
     debug:
@@ -25,7 +25,13 @@ config:
     otlp_http/prometheus:
       # https://prometheus.io/docs/prometheus/latest/querying/api/#otlp-receiver
       endpoint: "http://prometheus-server.observability.svc.cluster.local:80/api/v1/otlp"
+    # Add this as a exporter to send logs to Loki via OTLP HTTP
+    otlp_http/loki:
+      endpoint: "http://loki.observability.svc.cluster.local:3100/otlp"
   service:
     pipelines:
       metrics:
         exporters: [debug, otlp_http/prometheus]
+      logs:
+        exporters: [debug, otlp_http/loki]
+### This config above is to export OTEL Metrics and Logs to Prometheus and Loki via OTLP HTTP

@@ -169,7 +169,9 @@ env:
   OTEL_EXPORTER_OTLP_ENDPOINT: http://opentelemetry-collector.observability.svc.cluster.local:4318
   OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf 
   OTEL_TRACES_EXPORTER: none
-  OTEL_LOGS_EXPORTER: none
+  # Enable the bottom if wish to send logs to OTEL collector, which will then send to Loki via OTLP HTTP
+  # OTEL_LOGS_EXPORTER: otlp 
+  OTEL_LOGS_EXPORTER: none # Keep this as none if wish to send logs via agent to loki directly
   # This below will export my app records, notifications.sent metric
   # Take note this will duplicate JVM and HTTP metrics
   OTEL_INSTRUMENTATION_MICROMETER_ENABLED: "true"

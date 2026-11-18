@@ -1,0 +1,41 @@
+mode: "daemonset"
+
+image:
+  # -- If you want to use the core image `otel/opentelemetry-collector`, you also need to change `command.name` value to `otelcol`.
+  repository: "otel/opentelemetry-collector-k8s"
+  pullPolicy: IfNotPresent
+  # -- Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+  # -- When digest is set to a non-empty value, images will be pulled by digest (regardless of tag value).
+  digest: ""
+imagePullSecrets: []
+
+presets:
+  # Automatically mounts /var/log/pods and configures the filelog receiver
+  logsCollection:
+    enabled: true
+    includeCollectorLogs: false
+  # Automatically configures RBAC and k8sattributes processor for metadata enrichment
+  kubernetesAttributes:
+    enabled: true
+
+# OpenTelemetry Collector executable
+command:
+  name: "otelcol-k8s"
+  extraArgs: []
+
+### This config below is to export kube container logs to Loki via OTLP HTTP
+config:
+  receivers:
+    file_log:
+      exclude:
+        - /var/log/pods/observability_otel-agent-*_*/*/*.log                 # this agent itself
+        - /var/log/pods/observability_opentelemetry-collector-*_*/*/*.log    # the gateway (stops the loop)
+  exporters:
+    otlp_http/loki:
+      endpoint: "http://loki.observability.svc.cluster.local:3100/otlp"
+  service:
+    pipelines:
+      logs:
+        exporters: [otlp_http/loki]
+### This config below is to export kube container logs to Loki via OTLP HTTP

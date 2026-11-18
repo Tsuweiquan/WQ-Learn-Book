@@ -52,3 +52,94 @@ So per-request values (`trace_id`, `span_id`) go in **structured metadata**: sto
 
 helm upgrade --install loki grafana-community/loki --version 21.2.3 -f monolithic-values.yaml -n observability
 ```
+Loki should be deployed now!
+To verify
+
+```bash
+kubectl -n observability port-forward svc/loki 3100:3100
+http://localhost:3100/memberlist
+http://localhost:3100/ring
+http://localhost:3100/ready
+```
+
+# 2 methods to ingest logs
+
+# Forward logs from Otel Collector to Loki
+
+Setup App to send logs out to Otel collector
+Update application helm chart env variables and helm deploy the app
+```yaml
+OTEL_LOGS_EXPORTER: otlp
+```
+
+Configure Otel collector to send logs to Loki
+```yaml
+config:
+  exporters:
+    debug:
+      verbosity: "basic"
+      # Uncomment below to see OTEL collector logs
+      # verbosity: detailed
+    otlp_http/prometheus:
+      # https://prometheus.io/docs/prometheus/latest/querying/api/#otlp-receiver
+      endpoint: "http://prometheus-server.observability.svc.cluster.local:80/api/v1/otlp"
+    # Add this as a exporter to send logs to Loki via OTLP HTTP
+    otlp_http/loki:
+      endpoint: "http://loki.observability.svc.cluster.local:3100/otlp"
+  service:
+    pipelines:
+      metrics:
+        exporters: [debug, otlp_http/prometheus]
+      logs:
+        exporters: [debug, otlp_http/loki]
+```
+
+Verify if endpoint is correct
+```bash
+kubectl -n observability port-forward svc/loki 3100:3100
+curl -i -X POST http://localhost:3100/otlp/v1/logs \
+  -H 'Content-Type: application/json' \
+  -d '{"resourceLogs":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"curl-test"}}]},
+       "scopeLogs":[{"logRecords":[{"timeUnixNano":"'"$(date +%s%N)"'","severityText":"INFO","body":{"stringValue":"hello loki"}}]}]}]}'
+
+> HTTP/1.1 204 No Content
+> Date: Wed, 18 Nov 2026 13:35:23 GMT
+
+curl -sG http://localhost:3100/loki/api/v1/query_range \
+  --data-urlencode 'query={service_name="curl-test"}' | jq '.data.result'
+> Gets a JSON response back
+```
+
+Verify if application is in loki
+```bash
+kubectl -n observability port-forward svc/loki 3100:3100
+curl -s http://localhost:3100/loki/api/v1/label/service_name/values
+
+> {"status":"success","data":["notification-service","unknown_service"]}
+```
+
+# Forward logs from kubernetes stdout to Loki
+The idea is to deploy another otel-collector, otel-agent, daemonset mode and send all logs directly to Loki
+https://opentelemetry.io/docs/specs/otel/logs/
+
+```
+every pod ─stdout─▶ /var/log/pods (on each node)
+                        │
+                        ▼
+              otel-agent  (DaemonSet, one per node)
+              reads files, adds k8s metadata
+                        │ otlp_http/loki
+                        ▼
+                      Loki
+```
+```bash
+# run from wq_practical_book/
+helm upgrade --install otel-agent open-telemetry/opentelemetry-collector --version 0.178.3 -n observability -f Lab/5.1.otel-logs/logs-opentelemetry-collector-values.yaml
+```
+![Opentelemetry diagram](otel-diagram.png)
+
+Verify if kube logs are going in
+```bash
+
+
+```

@@ -1,8 +1,12 @@
 ---
 commonLabels:
-  app.kubernetes.io/part-of: observability
+  stack: observability
   environment: lab
 loki:
+  # Need this for ingesting logs from OTEL collector via OTLP HTTP
+  limits_config:
+    allow_structured_metadata: true
+  auth_enabled: false
   commonConfig:
     replication_factor: 1
   schemaConfig:
