@@ -1022,7 +1022,7 @@ My own walkthrough of this lab on a real KinD cluster, with every command, value
 - [x] Logs: Logback → agent → collector → Loki (`otlp_http/loki`), with `trace_id` as structured metadata
 - [x] Logs from every pod's stdout: a second collector, `otel-agent` (`mode: daemonset`, `file_log` + `k8s_attributes`), pushing straight to Loki
 - [x] Grafana with Prometheus and Loki data sources, exposed on the kind Gateway
-- [ ] Traces: a traces backend (the collector only has `debug` for traces)
+- [ ] Traces: a traces backend (the collector only has `debug` for traces). Theory and lab: [Topic 05a · Traces with Tempo](/topics/05a-otel-traces-tempo)
 - [ ] Grafana dashboards, and data sources provisioned in values instead of added in the UI
 
 </Checklist>
