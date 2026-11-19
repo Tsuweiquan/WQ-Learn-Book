@@ -1,17 +1,15 @@
 ---
-number: "05a"
-parent: 05-otel-java-kind
 title: "Distributed Tracing with OpenTelemetry and Tempo: Transaction IDs and Database Spans"
 shortTitle: Traces with Tempo
-summary: "Add the third signal to the Topic 05 stack. What a trace and a span are, how a trace ID travels between services, how to make a business transaction ID searchable, and how far tracing reaches into the database: client spans from the JDBC driver, and the trace ID written into the database's own log with sqlcommenter. Then install Tempo on KinD, send traces through the collector, query them with TraceQL and link them to logs in Grafana."
+summary: "Add the third signal to the OTel Java on KinD stack. What a trace and a span are, how a trace ID travels between services, how to make a business transaction ID searchable, and how far tracing reaches into the database: client spans from the JDBC driver, and the trace ID written into the database's own log with sqlcommenter. Then install Tempo on KinD, send traces through the collector, query them with TraceQL and link them to logs in Grafana."
 indexSummary: "Traces: spans, propagation, transaction IDs, DB spans + sqlcommenter → Tempo + Grafana on KinD"
-area: Observability
 added: "2026-11-18"
+type: deep-dive
 tags: [OpenTelemetry, Tracing, Tempo, TraceQL, Java, PostgreSQL, Grafana]
 ---
 
 <Muted>
-Builds on [Topic 05](/topics/05-otel-java-kind) and your Labs 5.0–5.2 (Collector gateway, Prometheus, Loki, `otel-agent`, Grafana). Versions: OTel Java agent 2.33.1, chart `grafana-community/tempo` 3.2.1 (Tempo 3.1.1), PostgreSQL 18, Spring Boot 4.1.2.
+Builds on [OTel Java on KinD](/observability/otel-java-kind) and your Labs 01–03 (Collector gateway, Prometheus, Loki, `otel-agent`, Grafana). Versions: OTel Java agent 2.33.1, chart `grafana-community/tempo` 3.2.1 (Tempo 3.1.1), PostgreSQL 18, Spring Boot 4.1.2.
 </Muted>
 
 <Note title="What was tested, and what wasn't">
@@ -28,7 +26,7 @@ Not run: the `kind`, `kubectl` and `helm install` steps, the Collector's traces 
 
 <Block id="arch-scenario" title="1.1 The scenario">
 
-Your Topic 05 stack already carries metrics and logs. Traces use the same agent and the same gateway Collector. Only the backend is new:
+Your OTel Java on KinD stack already carries metrics and logs. Traces use the same agent and the same gateway Collector. Only the backend is new:
 
 - **Tempo** in `observability`: stores traces, answers TraceQL queries, and (optionally) turns spans into metrics for Prometheus.
 - **PostgreSQL** in `dev`: a small database for `notification-service`, so traces show database calls.
@@ -115,7 +113,7 @@ flowchart LR
 
 <Block id="arch-c" title="1.4 Architecture C · A different trace backend (Jaeger, a vendor)" toc="1.4 C · Other backends">
 
-The app and Collector stay the same. Only the exporter changes: Jaeger (its v2 is built on the OpenTelemetry Collector and accepts OTLP), a cloud service such as Google Cloud Trace ([Topic 04](/topics/04-otel-java-gcp)), or Grafana Cloud.
+The app and Collector stay the same. Only the exporter changes: Jaeger (its v2 is built on the OpenTelemetry Collector and accepts OTLP), a cloud service such as Google Cloud Trace ([OTel Java on GCP](/observability/otel-java-gcp)), or Grafana Cloud.
 
 <Fit>
 <Pros title="Fits when">
@@ -242,11 +240,11 @@ W3C has worked on a standard response header (`traceresponse`) in a newer level 
 { span.notification.id = "1dec6d0c-e82e-4c56-afdf-2c55efd01e68" }
 ```
 
-This is **the opposite of the Loki rule** from Topic 05. A unique ID per request must not be a Loki label or a Prometheus label, because each value creates a new stream or series. In a trace, an attribute is just data stored with that one span, so high-cardinality values like IDs are exactly what span attributes are for.
+This is **the opposite of the Loki rule** from OTel Java on KinD. A unique ID per request must not be a Loki label or a Prometheus label, because each value creates a new stream or series. In a trace, an attribute is just data stored with that one span, so high-cardinality values like IDs are exactly what span attributes are for.
 
 **3 · Carrying the business ID to other services: baggage.** Baggage is a key-value store that travels with the context (in the `baggage` header) to every downstream service. It is **not** added to spans automatically: "Baggage … is unassociated with attributes on spans, metrics, or logs without explicitly adding them." Each service reads it and sets the attribute itself. The OTel docs also warn that baggage can reach "unintended resources, like third-party APIs", is visible on the network, and has no integrity check. So put IDs in it, never credentials or personal data.
 
-**4 · Log lines carry the trace ID.** The agent puts `trace_id`, `span_id` and `trace_flags` into the logging MDC of every log call made inside a span. Over OTLP they become structured metadata (Topic 05). On stdout they only appear if the log pattern prints them, which [3.9](#im-grafana) sets up for your `otel-agent` path.
+**4 · Log lines carry the trace ID.** The agent puts `trace_id`, `span_id` and `trace_flags` into the logging MDC of every log call made inside a span. Over OTLP they become structured metadata (OTel Java on KinD). On stdout they only appear if the log pattern prints them, which [3.9](#im-grafana) sets up for your `otel-agent` path.
 
 </Block>
 
@@ -348,7 +346,7 @@ Tempo stores traces in object storage (or local disk for a lab), indexed only by
 
 Grafana's docs call out a common mistake: "Configuring the Tempo data source without also configuring the Loki data source". Both directions need their own setup.
 
-Your app's logs now reach Loki from stdout ([Lab 5.1](/practical/Lab/5.1.otel-logs/README-Setup-Logs.md)). A stdout line only has a trace ID if the log pattern prints it, so [3.9](#im-grafana) adds `trace_id=…` to the pattern.
+Your app's logs now reach Loki from stdout ([Lab 02 · Logs](/practical/Lab/otel-java-kind/02-logs/README-Setup-Logs.md)). A stdout line only has a trace ID if the log pattern prints it, so [3.9](#im-grafana) adds `trace_id=…` to the pattern.
 
 </Block>
 
@@ -377,11 +375,11 @@ Your app's logs now reach Loki from stdout ([Lab 5.1](/practical/Lab/5.1.otel-lo
 
 <Part level={3} id="impl" title="Implementation">
 
-All of this goes on top of your running Lab 5 stack. Run commands from `wq_practical_book/`, like your other labs.
+All of this goes on top of your running OTel Java on KinD stack. Run commands from `wq_practical_book/`, like your other labs.
 
 <Block id="im-prereqs" title="3.1 What you need" toc="3.1 Prerequisites">
 
-- Labs 5.0–5.2 running: gateway Collector `opentelemetry-collector`, Prometheus, Loki, `otel-agent`, Grafana, all in `observability`
+- Labs 01–03 running: gateway Collector `opentelemetry-collector`, Prometheus, Loki, `otel-agent`, Grafana, all in `observability`
 - `notification-service` in `dev`, with the Java agent 2.33.1
 - The `grafana-community` Helm repo (you added it for Loki): `helm repo update`
 
@@ -389,7 +387,7 @@ All of this goes on top of your running Lab 5 stack. Run commands from `wq_pract
 
 <Block id="im-tempo" title="3.2 Install Tempo" toc="3.2 Install Tempo">
 
-```yaml title="Lab/5.3.otel-traces/tempo-values.yaml"
+```yaml title="Lab/otel-java-kind/04-traces/tempo-values.yaml"
 # grafana-community/tempo 3.2.1: monolithic (single binary), local disk
 tempo:
   retention: 24h
@@ -408,7 +406,7 @@ persistence:
 
 ```bash
 helm upgrade --install tempo grafana-community/tempo --version 3.2.1 \
-  -n observability -f Lab/5.3.otel-traces/tempo-values.yaml
+  -n observability -f Lab/otel-java-kind/04-traces/tempo-values.yaml
 kubectl -n observability rollout status statefulset/tempo
 kubectl -n observability get svc tempo
 ```
@@ -421,14 +419,14 @@ The rendered chart creates a StatefulSet `tempo` and a ClusterIP Service `tempo`
 
 The metrics-generator pushes with the Prometheus remote-write protocol to `/api/v1/write`. Prometheus only accepts that with a flag. Add it next to the OTLP one in your Prometheus values:
 
-```yaml title="Lab/5.0.otel-metrics/prometheus-values.yaml (server.extraFlags)"
+```yaml title="Lab/otel-java-kind/01-metrics/prometheus-values.yaml (server.extraFlags)"
   extraFlags:
     - web.enable-lifecycle
     - web.enable-otlp-receiver          # OTLP metrics from the Collector
     - web.enable-remote-write-receiver  # span metrics + service graph from Tempo
 ```
 
-Then run your `helm upgrade --install prometheus …` command from Lab 5.0. Without the flag, Tempo's log shows remote-write errors, and the service graph stays empty.
+Then run your `helm upgrade --install prometheus …` command from Lab 01. Without the flag, Tempo's log shows remote-write errors, and the service graph stays empty.
 
 </Block>
 
@@ -436,7 +434,7 @@ Then run your `helm upgrade --install prometheus …` command from Lab 5.0. With
 
 The chart's default config already has a `traces` pipeline (receiver `otlp`, exporter `debug`). Add Tempo as an exporter in your gateway values:
 
-```yaml title="Lab/5.0.otel-metrics/opentelemetry-collector-values.yaml"
+```yaml title="Lab/otel-java-kind/01-metrics/opentelemetry-collector-values.yaml"
 config:
   exporters:
     # … debug, otlp_http/prometheus, otlp_http/loki as before
@@ -449,7 +447,7 @@ config:
         exporters: [debug, otlp_http/tempo]
 ```
 
-Upgrade the Collector with your Lab 5.0 command. The app already sends to this Service and port, so the app needs no new endpoint.
+Upgrade the Collector with your Lab 01 command. The app already sends to this Service and port, so the app needs no new endpoint.
 
 </Block>
 
@@ -562,7 +560,7 @@ public class TraceIdHeaderFilter extends OncePerRequestFilter {
 
 **The database.** A plain Deployment in `dev`, with every statement logged (`log_min_duration_statement=0`) so the sqlcommenter comments show up:
 
-```yaml title="Lab/5.3.otel-traces/postgres.yaml"
+```yaml title="Lab/otel-java-kind/04-traces/postgres.yaml"
 # Lab only: password in plain text, no volume (data is gone on restart)
 apiVersion: apps/v1
 kind: Deployment
@@ -657,7 +655,7 @@ Point the app at the database and turn on sqlcommenter:
   OTEL_INSTRUMENTATION_COMMON_DB_EXPERIMENTAL_SQLCOMMENTER_ENABLED: "true"
 ```
 
-Build (`./mvnw clean package` runs the test), build a new image tag, load it into kind and upgrade, the same way as in Lab 5.0. Apply `postgres.yaml` first. Then send a notification:
+Build (`./mvnw clean package` runs the test), build a new image tag, load it into kind and upgrade, the same way as in Lab 01. Apply `postgres.yaml` first. Then send a notification:
 
 ```bash
 curl -s -i -X POST http://localhost:8080/notifications | grep -iE "x-trace-id|^\{"
@@ -733,9 +731,9 @@ All of these ran against Tempo 3.1.1 with the traces from the test. Run them in 
 
 Lines logged inside a request then read `… trace_id=d3bdbc7a… span_id=… INFO …`.
 
-**Provision the data sources** in your Grafana values. This also replaces the ones added in the UI, which are lost on restart anyway (see your Lab 5.2 caveat):
+**Provision the data sources** in your Grafana values. This also replaces the ones added in the UI, which are lost on restart anyway (see your Lab 03 caveat):
 
-```yaml title="Lab/5.2.grafana/grafana-values.yaml (datasources)"
+```yaml title="Lab/otel-java-kind/03-grafana/grafana-values.yaml (datasources)"
 datasources:
   datasources.yaml:
     apiVersion: 1
@@ -825,7 +823,7 @@ The Grafana docs show `matcherRegex` derived fields in provisioning YAML, but no
 
 ```bash
 helm -n observability uninstall tempo
-kubectl delete -f Lab/5.3.otel-traces/postgres.yaml
+kubectl delete -f Lab/otel-java-kind/04-traces/postgres.yaml
 # app: set OTEL_TRACES_EXPORTER back to none and remove the SPRING_DATASOURCE_* / sqlcommenter env, then helm upgrade
 # Collector: remove otlp_http/tempo from the traces pipeline, then helm upgrade
 ```

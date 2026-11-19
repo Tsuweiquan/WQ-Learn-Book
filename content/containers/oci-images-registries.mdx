@@ -1,10 +1,8 @@
 ---
-number: "06"
 title: "OCI: How Container Images, Registries and Artifacts Really Work"
 shortTitle: OCI images and registries
 summary: "The Open Container Initiative's three specifications: image, distribution and runtime. What a manifest, index, config, layer and digest are, how a registry serves them over HTTP, and how the same format carries Helm charts and SBOMs. The lab pushes your notification-service image to a local registry and takes it apart with curl, crane, ORAS and Helm."
 indexSummary: "Image index → manifest → config + layers, digests, registry HTTP API, artifacts and referrers; hands-on with curl, crane, ORAS, Helm"
-area: Containers
 added: "2026-11-03"
 tags: [OCI, Docker, Registry, crane, ORAS, Helm]
 ---
@@ -544,7 +542,7 @@ Digest: sha256:81b99f9ec100e1d9da2dfb85ca38eaf3f9b29116eccd6a060294562d121c39f1
 }
 ```
 
-Helm uses the **typed config** pattern: the config media type names the artifact, and there's no `artifactType`. Helm also leaves out the manifest's top-level `mediaType`, which the spec only says SHOULD be set. `helm install` and `helm show chart` read it back with `oci://localhost:5000/charts/notification-service --version 0.1.0 --plain-http`. Topic 05 installs charts the same way from ghcr.io.
+Helm uses the **typed config** pattern: the config media type names the artifact, and there's no `artifactType`. Helm also leaves out the manifest's top-level `mediaType`, which the spec only says SHOULD be set. `helm install` and `helm show chart` read it back with `oci://localhost:5000/charts/notification-service --version 0.1.0 --plain-http`. [OTel Java on KinD](/observability/otel-java-kind) installs charts the same way from ghcr.io.
 
 </Block>
 

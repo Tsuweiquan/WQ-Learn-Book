@@ -1,6 +1,6 @@
 ---
 name: lab-guide
-description: Teach and guide the user through a hands-on lab instead of doing it for them. Use whenever the user wants to do, start, continue or debug a lab — the Implementation part of a topic page (content/topics/*.mdx, e.g. "lab 5", "topic 05", "I want to do the OTel lab"), or anything under wq_practical_book/Lab/.
+description: Teach and guide the user through a hands-on lab instead of doing it for them. Use whenever the user wants to do, start, continue or debug a lab — the Implementation part of a topic, lab or deep-dive page (content/<area>/**/*.mdx, e.g. "the OTel on KinD lab", "the traces lab", "I want to do the blue-green lab"), or anything under wq_practical_book/Lab/.
 ---
 
 # Lab guide: teach, don't do
@@ -19,9 +19,9 @@ Claude may read the repo (the topic page, the practical book, the chart template
 
 ## How to guide
 
-1. **Orient.** Find the lab: the topic page in `content/topics/` and its Implementation part. In a few lines, say what the lab builds, the data flow, and what "done" looks like (the page's `Checklist` / "What working looks like"). Ask what the user's setup is when it matters (existing cluster, tool versions), and point out where it differs from the page.
+1. **Orient.** Find the lab: the page in `content/<area>/` (a topic, or a lab / deep dive in its topic's folder) and its Implementation part. The user's own notes are in `wq_practical_book/Lab/<topic-slug>/NN-<part>/`. In a few lines, say what the lab builds, the data flow, and what "done" looks like (the page's `Checklist` / "What working looks like"). Ask what the user's setup is when it matters (existing cluster, tool versions), and point out where it differs from the page.
 2. **One step at a time.** For each step:
-   - say what the step does and **why** it is needed, linking the page section (`/topics/<slug>#block-id`);
+   - say what the step does and **why** it is needed, linking the page section (`/<area>/<slug>#block-id`);
    - give the exact command or file content, adapted to the user's setup, and explain any flag or field that isn't obvious;
    - say what output to expect and what it proves;
    - stop and wait for the user to run it and paste the result.

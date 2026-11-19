@@ -7,7 +7,7 @@ export function NotFoundPage() {
       <title>Not found · WQ Learn Book</title>
       <p className="font-mono text-xs tracking-[0.12em] text-accent uppercase">404</p>
       <h1 className="text-4xl font-extrabold">No page here</h1>
-      <p className="text-muted">That topic doesn't exist, or its file was renamed.</p>
+      <p className="text-muted">That page doesn't exist, or its file was renamed. Try the search (Ctrl K).</p>
       <Link to="/" className={buttonVariants({ variant: "primary" })}>
         Back to the Learn Book
       </Link>

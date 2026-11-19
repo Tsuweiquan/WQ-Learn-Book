@@ -4,8 +4,8 @@ import type { ReactNode } from "react";
 import { Link as RouterLink } from "react-router";
 
 import { PageFooter } from "../components/PageFooter";
-import { ProgressChip } from "../components/ProgressChip";
-import { formatDate, topicPath, topics } from "../lib/topics";
+import { TopicRow } from "../components/TopicRow";
+import { areaGroups, childrenOf, formatDate, tags, topics } from "../lib/topics";
 
 const LEVELS = [
   {
@@ -46,44 +46,53 @@ const LEVELS = [
   },
 ];
 
-const TEMPLATE: { key: string; value: ReactNode }[] = [
-  { key: "Header", value: <><strong className="text-foreground">Topic name</strong>, one-line summary, date added, area tag.</> },
-  { key: "Table of contents", value: "Always at the top, linking to every section below." },
+const PARTS: { key: string; value: ReactNode }[] = [
+  { key: "Header", value: "Title, one-line summary, date added, area, tags." },
+  { key: "Table of contents", value: "Always at the top, built from the Parts and Blocks below." },
   {
     key: "§1 Architecture",
     value: (
       <>
-        <strong className="text-foreground">Multiple</strong> architecture examples:
-        <ol className="mt-1 list-decimal pl-5">
-          <li>Architecture A: diagram, components, flow</li>
-          <li>Architecture B: diagram, components, flow</li>
-          <li>Comparison: when to choose which</li>
-        </ol>
+        <strong className="text-foreground">Multiple</strong> architecture examples, each with a diagram, components
+        and flow, then a comparison: when to choose which.
       </>
     ),
   },
+  { key: "§2 Theory", value: "What it is, why the industry does it this way, the problems it solves, pros and cons." },
+  { key: "§3 Implementation", value: "Runnable code and config, a way to test it on a laptop, expected output, cleanup." },
+  { key: "References", value: "Links to the official docs and sources used for the page." },
+  { key: "§4 Self implementation", value: "Optional: links to my own lab notes in the Practical Book, what's done, what differed." },
+];
+
+const PAGE_TYPES: { type: string; where: string; lead: string; parts: { key: string; value: ReactNode }[] }[] = [
   {
-    key: "§2 Theory",
-    value: (
-      <ul className="list-disc pl-5">
-        <li>What it is</li>
-        <li>Why the industry does it this way</li>
-        <li>Problems it solves</li>
-        <li>Pros and cons</li>
-      </ul>
-    ),
+    type: "Topic",
+    where: "content/<area>/<slug>.mdx",
+    lead: "A subject of its own, learned top-down.",
+    parts: PARTS,
   },
   {
-    key: "§3 Implementation",
-    value: (
-      <ul className="list-disc pl-5">
-        <li>Step-by-step example with code</li>
-        <li>How to test it locally</li>
-        <li>Expected results and cleanup</li>
-      </ul>
-    ),
+    type: "Lab",
+    where: "content/<area>/<topic>/<slug>.mdx",
+    lead: "A hands-on run of its parent topic, step by step on one machine.",
+    parts: [
+      { key: "§1 Lab architecture", value: "The host and what runs on it, with a diagram per lab." },
+      { key: "§2 What the tests prove", value: "Goals, how they're measured, pass criteria." },
+      { key: "§3 Run the lab", value: "Prepare the machine, numbered steps, what \"working\" looks like, cleanup." },
+      { key: "References", value: "Docs for every tool and version used." },
+      { key: "§4 Self implementation", value: "Optional: my own run, as for a topic." },
+    ],
   },
-  { key: "References", value: "Links to official docs and sources used for the page." },
+  {
+    type: "Deep dive",
+    where: "content/<area>/<topic>/<slug>.mdx",
+    lead: "One part of its parent topic in depth. It builds on the parent's setup instead of repeating it.",
+    parts: [
+      { key: "Builds on", value: "A note at the top: which parent sections and labs it assumes." },
+      { key: "§1–§3", value: "The full topic outline (architecture, theory, implementation), scoped to that one part." },
+      { key: "References", value: "As for a topic." },
+    ],
+  },
 ];
 
 const RULES = [
@@ -128,7 +137,7 @@ const SECTIONS = [
   { id: "topics", label: "2. Topic index" },
   { id: "practical", label: "3. Practical book" },
   { id: "reads", label: "4. Good reads" },
-  { id: "template", label: "5. Page template" },
+  { id: "template", label: "5. Page types" },
   { id: "rules", label: "6. House rules" },
 ];
 
@@ -138,6 +147,7 @@ function SectionHeading({ children }: { children: ReactNode }) {
 
 export function HomePage() {
   const topicCount = topics.filter((t) => !t.parent).length;
+  const childCount = topics.length - topicCount;
   const started = topics.map((t) => t.added).sort()[0];
 
   return (
@@ -162,6 +172,11 @@ export function HomePage() {
             <Chip size="sm" variant="secondary" className="font-mono">
               {topicCount} {topicCount === 1 ? "topic" : "topics"}
             </Chip>
+            {childCount > 0 && (
+              <Chip size="sm" variant="secondary" className="font-mono">
+                {childCount} {childCount === 1 ? "lab or deep dive" : "labs and deep dives"}
+              </Chip>
+            )}
             <Chip size="sm" variant="secondary" className="font-mono">
               Architecture → Theory → Implementation
             </Chip>
@@ -209,41 +224,45 @@ export function HomePage() {
         <section id="topics" className="grid gap-5">
           <SectionHeading>2. Topic index</SectionHeading>
           <p className="max-w-[65ch] text-muted">
-            Each topic gets its own page. A new MDX file in <code className="font-mono text-sm">content/topics/</code>{" "}
-            shows up here automatically.
+            Topics grouped by area, with their labs and deep dives under them. A new MDX file in{" "}
+            <code className="font-mono text-sm">content/&lt;area&gt;/</code> shows up here automatically. Browse by{" "}
+            <Link href="/tags" className="text-accent">
+              tag
+            </Link>{" "}
+            ({tags.length}), or search with <kbd className="font-mono text-sm">Ctrl K</kbd>.
           </p>
-          <Card className="gap-0 overflow-hidden p-0">
-            <div className="flex justify-between gap-3 border-b border-border bg-sky px-4.5 py-3.5">
-              <strong>Topics</strong>
-              <span className="font-mono text-xs text-muted">
-                {topics.length} {topics.length === 1 ? "page" : "pages"}
-              </span>
-            </div>
-            <div className="hidden grid-cols-[2fr_1fr_1fr_20px] gap-3 border-b border-border px-4.5 py-2.5 font-mono text-[11px] tracking-[0.08em] text-muted uppercase sm:grid">
-              <span>Topic</span>
-              <span>Area</span>
-              <span>Added</span>
-            </div>
-            {topics.map((t) => (
-              <RouterLink
-                key={t.slug}
-                to={topicPath(t.slug)}
-                className="grid items-start gap-1 border-b border-border px-4.5 py-3.5 text-foreground no-underline last:border-b-0 hover:bg-sky sm:grid-cols-[2fr_1fr_1fr_20px] sm:gap-3"
-              >
-                <span className={`grid min-w-0 gap-0.5 ${t.parent ? "sm:ps-5" : ""}`}>
-                  <b>
-                    {t.parent && "↳ "}
-                    {t.number} · {t.title}
-                  </b>
-                  {t.progress && <ProgressChip progress={t.progress} className="w-fit" />}
-                  <small className="text-sm text-muted">{t.indexSummary}</small>
-                </span>
-                <span className="font-mono text-[13px] text-muted">{t.area}</span>
-                <span className="font-mono text-[13px] text-muted">{formatDate(t.added)}</span>
-                <ChevronRight className="hidden self-center text-muted sm:block" />
-              </RouterLink>
+          <nav aria-label="Areas" className="flex flex-wrap gap-2">
+            {areaGroups.map(({ area }) => (
+              <Link key={area.slug} href={`#area-${area.slug}`} className="no-underline">
+                <Chip size="sm" variant="secondary" className="font-mono hover:bg-sky-2">
+                  {area.title}
+                </Chip>
+              </Link>
             ))}
-          </Card>
+          </nav>
+          {areaGroups.map(({ area, topics: areaTopics }) => (
+            <Card key={area.slug} id={`area-${area.slug}`} className="scroll-mt-20 gap-0 overflow-hidden p-0">
+              <div className="grid gap-0.5 border-b border-border bg-sky px-4.5 py-3.5">
+                <div className="flex justify-between gap-3">
+                  <h3 className="text-lg font-bold">{area.title}</h3>
+                  <span className="font-mono text-xs text-muted">
+                    {areaTopics.length} {areaTopics.length === 1 ? "topic" : "topics"}
+                  </span>
+                </div>
+                {area.blurb && <p className="text-sm text-muted">{area.blurb}</p>}
+              </div>
+              {areaTopics.map((t) => (
+                <div key={t.id} className="border-b border-border last:border-b-0 [&>a]:border-b-0">
+                  <TopicRow topic={t} />
+                  {childrenOf(t.id).map((child) => (
+                    <div key={child.id} className="border-t border-dashed border-border">
+                      <TopicRow topic={child} nested />
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </Card>
+          ))}
         </section>
 
         <section id="practical" className="grid gap-5">
@@ -290,23 +309,33 @@ export function HomePage() {
         </section>
 
         <section id="template" className="grid gap-5">
-          <SectionHeading>5. Page template</SectionHeading>
+          <SectionHeading>5. Page types</SectionHeading>
           <p className="max-w-[65ch] text-muted">
-            Every topic page follows this exact outline, so any page can be skimmed the same way.
+            Every page is one of three types, and each type has a fixed outline, so any page can be skimmed the same
+            way. Labs and deep dives live in their parent topic's folder and are listed under it.
           </p>
-          <Card className="gap-0 p-0">
-            <dl>
-              {TEMPLATE.map((row, i) => (
-                <div
-                  key={row.key}
-                  className={`grid gap-1.5 px-4.5 py-4 sm:grid-cols-[180px_minmax(0,1fr)] sm:gap-4 ${i > 0 ? "border-t border-border" : ""}`}
-                >
-                  <dt className="font-mono text-[13px] font-medium text-accent">{row.key}</dt>
-                  <dd className="min-w-0 text-muted">{row.value}</dd>
+          {PAGE_TYPES.map((pt) => (
+            <Card key={pt.type} className="gap-0 p-0">
+              <div className="grid gap-1 border-b border-border px-4.5 py-3.5">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                  <h3 className="text-lg font-bold">{pt.type}</h3>
+                  <code className="font-mono text-xs break-all text-muted">{pt.where}</code>
                 </div>
-              ))}
-            </dl>
-          </Card>
+                <p className="text-sm text-muted">{pt.lead}</p>
+              </div>
+              <dl>
+                {pt.parts.map((row, i) => (
+                  <div
+                    key={row.key}
+                    className={`grid gap-1.5 px-4.5 py-3.5 sm:grid-cols-[200px_minmax(0,1fr)] sm:gap-4 ${i > 0 ? "border-t border-border" : ""}`}
+                  >
+                    <dt className="font-mono text-[13px] font-medium text-accent">{row.key}</dt>
+                    <dd className="min-w-0 text-muted">{row.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </Card>
+          ))}
         </section>
 
         <section id="rules" className="grid gap-5">
@@ -326,7 +355,7 @@ export function HomePage() {
         </section>
       </main>
 
-      <PageFooter left="WQ Learn Book" right="v2 · HeroUI" />
+      <PageFooter left="WQ Learn Book" right="v3 · areas" />
     </>
   );
 }

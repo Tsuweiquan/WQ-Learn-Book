@@ -19,7 +19,7 @@ tar -zxvf grafana-14.4.1.tgz
 
 # run from wq_practical_book/
 helm upgrade --install grafana grafana-community/grafana --version 14.4.1 \
-  -n observability -f Lab/5.2.grafana/grafana-values.yaml
+  -n observability -f Lab/otel-java-kind/03-grafana/grafana-values.yaml
 kubectl -n observability rollout status deploy/grafana
 ```
 

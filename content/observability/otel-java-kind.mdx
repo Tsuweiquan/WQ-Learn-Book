@@ -1,10 +1,8 @@
 ---
-number: "05"
 title: "OpenTelemetry Metrics and Logs for Java Applications on a Local Ubuntu PC"
 shortTitle: OTel Java on KinD
 summary: "Run your Java service on a KinD cluster on Ubuntu, with the OpenTelemetry Java agent sending metrics and logs to an in-cluster OpenTelemetry Collector in another namespace. The collector forwards metrics to Prometheus and logs to Loki, and Grafana shows both. Every tool runs inside the cluster and is installed with Helm."
 indexSummary: "KinD on Ubuntu: Java agent → in-cluster collector → Prometheus + Loki → Grafana, all via Helm"
-area: Observability
 added: "2026-11-03"
 tags: [OpenTelemetry, Java, KinD, Prometheus, Loki, Grafana, Helm]
 progress: partial
@@ -65,7 +63,7 @@ The app only knows one address, the collector's. Metrics include the agent's HTT
 <Fit>
 <Pros title="Fits when">
 - You want one pipeline for metrics and logs, configured in one place
-- You want to swap backends later (Grafana Cloud, Google Cloud as in [Topic 04](/topics/04-otel-java-gcp)) by changing only the collector
+- You want to swap backends later (Grafana Cloud, Google Cloud as in [OTel Java on GCP](/observability/otel-java-gcp)) by changing only the collector
 - You want logs with trace IDs and resource labels, not raw text lines
 </Pros>
 <Cons title="Watch out for">
@@ -147,7 +145,7 @@ The app's resource attributes come from `OTEL_RESOURCE_ATTRIBUTES`, filled with 
 <Block id="th-metrics" title="2.2 Metrics: from Micrometer to Prometheus" toc="2.2 Metrics path">
 
 1. The agent's **Micrometer bridge** (`OTEL_INSTRUMENTATION_MICROMETER_ENABLED=true`, off by default) turns your `notifications.sent` counter, and the other Spring meters, into OTel metrics. The agent also produces its own `http.server.request.duration` and `jvm.*` metrics.
-2. `MANAGEMENT_METRICS_ENABLE_JVM=false` stops Micrometer's `jvm.*` meters, so JVM metrics come from one source only. Without it, `jvm.memory.used` would arrive twice with different units and labels (see [Topic 04 · 2.7](/topics/04-otel-java-gcp#th-micrometer)). In the test, Spring Boot 4.1 honoured it: no Micrometer `jvm_threads_*` or `jvm_buffer_*` series appeared.
+2. `MANAGEMENT_METRICS_ENABLE_JVM=false` stops Micrometer's `jvm.*` meters, so JVM metrics come from one source only. Without it, `jvm.memory.used` would arrive twice with different units and labels (see [OTel Java on GCP · 2.7](/observability/otel-java-gcp#th-micrometer)). In the test, Spring Boot 4.1 honoured it: no Micrometer `jvm_threads_*` or `jvm_buffer_*` series appeared.
 3. Prometheus translates OTLP names with its default `translation_strategy: UnderscoreEscapingWithSuffixes`. Dots become underscores, and unit and `_total` suffixes are added:
 
 | OTel metric | Prometheus series (seen in the test) |
@@ -212,7 +210,7 @@ Then I **stopped the collector** and sent two more notifications:
 - **The JVM fails before the agent exports anything**, for example bad configuration at startup.
 - **The OTel settings themselves are wrong** (endpoint, protocol). `kubectl logs` reads stdout and is how you'd find out.
 
-**No duplicates here.** In this lab nothing ships stdout to Loki, so keeping it doesn't put each line in Loki twice. Loki only gets the OTLP copy. The duplicate trap in [Topic 04 · 2.4](/topics/04-otel-java-gcp#th-logs) is different: there, Cloud Run and GKE ship stdout to Cloud Logging themselves, so you choose one path.
+**No duplicates here.** In this lab nothing ships stdout to Loki, so keeping it doesn't put each line in Loki twice. Loki only gets the OTLP copy. The duplicate trap in [OTel Java on GCP · 2.4](/observability/otel-java-gcp#th-logs) is different: there, Cloud Run and GKE ship stdout to Cloud Logging themselves, so you choose one path.
 
 | Option | Setting | Use when |
 | --- | --- | --- |
@@ -1007,9 +1005,9 @@ This removes everything: the cluster, the loaded images inside it, and all Prome
 
 My own walkthrough of this lab on a real KinD cluster, with every command, value file and error I hit, is in the Practical Book:
 
-- **[Lab 5.0 · Metrics (README-Setup-Metrics.md)](/practical/Lab/5.0.otel-metrics/README-Setup-Metrics.md)**
-- **[Lab 5.1 · Logs (README-Setup-Logs.md)](/practical/Lab/5.1.otel-logs/README-Setup-Logs.md)**
-- **[Lab 5.2 · Grafana (README-Grafana.md)](/practical/Lab/5.2.grafana/README-Grafana.md)**
+- **[Lab 01 · Metrics (README-Setup-Metrics.md)](/practical/Lab/otel-java-kind/01-metrics/README-Setup-Metrics.md)**
+- **[Lab 02 · Logs (README-Setup-Logs.md)](/practical/Lab/otel-java-kind/02-logs/README-Setup-Logs.md)**
+- **[Lab 03 · Grafana (README-Grafana.md)](/practical/Lab/otel-java-kind/03-grafana/README-Grafana.md)**
 
 **Status: partially completed.** Metrics (app → collector → Prometheus, including the custom `notifications_sent_total` counter) and logs (→ Loki, over OTLP and from pod stdout) work end to end, and Grafana queries both. Traces and dashboards aren't done yet.
 
@@ -1022,7 +1020,7 @@ My own walkthrough of this lab on a real KinD cluster, with every command, value
 - [x] Logs: Logback → agent → collector → Loki (`otlp_http/loki`), with `trace_id` as structured metadata
 - [x] Logs from every pod's stdout: a second collector, `otel-agent` (`mode: daemonset`, `file_log` + `k8s_attributes`), pushing straight to Loki
 - [x] Grafana with Prometheus and Loki data sources, exposed on the kind Gateway
-- [ ] Traces: a traces backend (the collector only has `debug` for traces). Theory and lab: [Topic 05a · Traces with Tempo](/topics/05a-otel-traces-tempo)
+- [ ] Traces: a traces backend (the collector only has `debug` for traces). Theory and lab: [Deep dive · Traces with Tempo](/observability/otel-java-kind/traces-tempo)
 - [ ] Grafana dashboards, and data sources provisioned in values instead of added in the UI
 
 </Checklist>

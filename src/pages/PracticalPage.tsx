@@ -2,7 +2,7 @@ import { ArrowUpRightFromSquare, ChevronRight, File, Folder } from "@gravity-ui/
 import { Card, Link } from "@heroui/react";
 import type { MDXComponents } from "mdx/types";
 import { Children, isValidElement, useMemo, type ComponentProps, type ReactNode } from "react";
-import { Link as RouterLink, useParams } from "react-router";
+import { Navigate, Link as RouterLink, useParams } from "react-router";
 
 import { mdxComponents } from "../components/mdx";
 import { CodeBlock } from "../components/mdx/CodeBlock";
@@ -17,6 +17,7 @@ import {
   type PracticalFile,
   type TreeFolder,
 } from "../lib/practical";
+import { legacyPracticalPath } from "../lib/redirects";
 import { NotFoundPage } from "./NotFoundPage";
 
 const tree = buildTree();
@@ -144,7 +145,10 @@ function Landing() {
 export function PracticalPage() {
   const path = useParams()["*"] ?? "";
   const file = path ? findPracticalFile(path) : undefined;
-  if (path && !file) return <NotFoundPage />;
+  if (path && !file) {
+    const moved = legacyPracticalPath(path);
+    return moved ? <Navigate to={practicalPath(moved)} replace /> : <NotFoundPage />;
+  }
 
   return (
     <>

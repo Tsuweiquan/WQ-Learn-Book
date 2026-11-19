@@ -1,13 +1,12 @@
 ---
-number: "02a"
-parent: 02-blue-green-one-cluster
 title: Blue-Green Lab on Ubuntu
 shortTitle: Blue-Green Lab on Ubuntu
 summary: Two hands-on tests on a single Ubuntu machine with kind. Lab 1 does blue-green with plain Kubernetes objects. Lab 2 does the same release with Argo Rollouts. Both run a live traffic generator so you can see the switch and confirm no requests fail.
 indexSummary: "Hands-on: Lab 1 with plain Services, Lab 2 with Argo Rollouts"
-area: Lab
 added: "2026-10-28"
-tags: [Ubuntu 22.04 / 24.04, kind, Argo Rollouts, ~45 min]
+type: lab
+duration: "~45 min"
+tags: [Ubuntu, kind, Argo Rollouts]
 ---
 
 <Part level={1} id="arch" title="Lab architecture">
@@ -38,7 +37,7 @@ flowchart LR
 
 <Block id="arch-l1" title="1.2 Lab 1 · without Argo Rollouts">
 
-Architecture A from [Topic 02](/topics/02-blue-green-one-cluster): two Deployments, a production Service and a preview Service. You do the switch yourself by patching the production Service selector. A tester pod inside the cluster sends a request every 0.2 seconds and logs which colour answered.
+Architecture A from [Blue-Green in One Cluster](/release-strategies/blue-green-one-cluster): two Deployments, a production Service and a preview Service. You do the switch yourself by patching the production Service selector. A tester pod inside the cluster sends a request every 0.2 seconds and logs which colour answered.
 
 ```mermaid
 flowchart LR
@@ -53,7 +52,7 @@ flowchart LR
 
 <Block id="arch-l2" title="1.3 Lab 2 · with Argo Rollouts">
 
-Architecture C from [Topic 02](/topics/02-blue-green-one-cluster): one `Rollout` resource and two Services. You only change the app version and run `promote`; the controller creates the new ReplicaSet, wires up the preview Service, switches the active Service and scales the old version down.
+Architecture C from [Blue-Green in One Cluster](/release-strategies/blue-green-one-cluster): one `Rollout` resource and two Services. You only change the app version and run `promote`; the controller creates the new ReplicaSet, wires up the preview Service, switches the active Service and scales the old version down.
 
 ```mermaid
 flowchart LR
@@ -584,7 +583,7 @@ This removes the whole cluster, including Argo Rollouts. Docker, kind, kubectl a
 
 <Block id="refs" title="References">
 
-- [Topic 02 · Blue-Green Deployment in One Kubernetes Cluster](/topics/02-blue-green-one-cluster)
+- [Blue-Green Deployment in One Kubernetes Cluster](/release-strategies/blue-green-one-cluster)
 - [kind · Quick start](https://kind.sigs.k8s.io/docs/user/quick-start/)
 - [kind · Releases](https://github.com/kubernetes-sigs/kind/releases)
 - [Kubernetes · Install kubectl on Linux](https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/)

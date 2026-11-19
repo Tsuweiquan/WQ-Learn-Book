@@ -5,8 +5,10 @@ import { Route, Routes, useHref, useLocation, useNavigate } from "react-router";
 import { SiteHeader } from "./components/SiteHeader";
 import { ThemeProvider } from "./lib/theme";
 import { HomePage } from "./pages/HomePage";
+import { LegacyTopicRedirect } from "./pages/LegacyRedirect";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { PracticalPage } from "./pages/PracticalPage";
+import { TagPage, TagsPage } from "./pages/TagsPage";
 import { TopicPage } from "./pages/TopicPage";
 
 const USER_SCROLL_EVENTS = ["wheel", "touchstart", "keydown", "mousedown"] as const;
@@ -60,8 +62,13 @@ export function App() {
           <SiteHeader />
           <Routes>
             <Route path="/" element={<HomePage />} />
-            <Route path="/topics/:slug" element={<TopicPage />} />
+            {/* Static segments outrank the :area routes, so area folders can't shadow these. */}
+            <Route path="/topics/:slug" element={<LegacyTopicRedirect />} />
             <Route path="/practical/*" element={<PracticalPage />} />
+            <Route path="/tags" element={<TagsPage />} />
+            <Route path="/tags/:tag" element={<TagPage />} />
+            <Route path="/:area/:slug" element={<TopicPage />} />
+            <Route path="/:area/:slug/:child" element={<TopicPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </div>

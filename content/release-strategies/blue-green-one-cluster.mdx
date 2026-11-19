@@ -1,23 +1,21 @@
 ---
-number: "02"
 title: Blue-Green Deployment in One Kubernetes Cluster
 shortTitle: Blue-Green in One Cluster
 summary: Run two complete versions of one production application side by side in the same cluster, verify the new one privately, then move all traffic in one switch, with the old version kept warm for instant rollback.
 indexSummary: Service selector switch, Gateway API weights, Argo Rollouts; kind lab
-area: Release strategies
 added: "2026-10-28"
 tags: [Kubernetes, Gateway API, Argo Rollouts, GKE]
 ---
 
 <Tip title="Hands-on lab">
-[Subtopic 02a · Blue-Green Lab on Ubuntu](/topics/02a-blue-green-lab-ubuntu) walks through Architecture A and Architecture C step by step on a single Ubuntu machine.
+The [Blue-Green Lab on Ubuntu](/release-strategies/blue-green-one-cluster/lab-ubuntu) walks through Architecture A and Architecture C step by step on a single Ubuntu machine.
 </Tip>
 
 <Part level={1} id="arch" title="Architecture examples" toc="Architecture">
 
 <Block id="arch-scenario" title="1.1 The scenario">
 
-One production application, one Kubernetes cluster (for example a GKE cluster in the prod project from [Topic 01](/topics/01-enterprise-cd-github)). The current version is <Pill color="blue">blue</Pill> and serves all users. The new version is <Pill color="green">green</Pill>.
+One production application, one Kubernetes cluster (for example a GKE cluster in the prod project from [Enterprise CD on GitHub](/ci-cd/enterprise-cd-github)). The current version is <Pill color="blue">blue</Pill> and serves all users. The new version is <Pill color="green">green</Pill>.
 
 - Both versions run at the same time, each at full or near-full capacity.
 - Green can be reached privately (preview) before any user sees it.
@@ -454,19 +452,19 @@ kubectl argo rollouts -n prod undo my-app         # roll back to previous revisi
 
 <Block id="im-pipeline" title="3.4 Wiring into the CD pipeline">
 
-In the Topic 01 pipeline, the prod deploy job changes the image (by digest) and the release becomes two steps under the `prod` environment:
+In the [Enterprise CD on GitHub](/ci-cd/enterprise-cd-github) pipeline, the prod deploy job changes the image (by digest) and the release becomes two steps under the `prod` environment:
 
 1. **Deploy green:** update the image on the idle colour (A/B) or on the Rollout (C). No user impact.
 2. **Release:** after preview checks pass, run the cutover: the selector patch (A), the weight change (B), or `kubectl argo rollouts promote` (C). This can be a separate job behind its own environment approval.
 
-With GitOps (Topic 01, Architecture B), the pipeline commits these changes to the config repo instead of calling `kubectl`. For C, Argo CD applies the new image and the Rollout pauses for promotion.
+With GitOps (Enterprise CD on GitHub, Architecture B), the pipeline commits these changes to the config repo instead of calling `kubectl`. For C, Argo CD applies the new image and the Rollout pauses for promotion.
 
 </Block>
 
 <Block id="im-local" title="3.5 Test it locally with kind" toc="3.5 Test it locally">
 
 <Muted>
-For a full step-by-step version on Ubuntu, see [Subtopic 02a](/topics/02a-blue-green-lab-ubuntu).
+For a full step-by-step version on Ubuntu, see [Blue-Green Lab on Ubuntu](/release-strategies/blue-green-one-cluster/lab-ubuntu).
 </Muted>
 
 Goal: watch traffic flip from blue to green with zero failed requests, then flip back. Uses `hashicorp/http-echo`, which returns fixed text (default port 5678), so each colour is easy to tell apart.

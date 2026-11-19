@@ -1,20 +1,18 @@
 ---
-number: "08"
 title: "Vector: One Pipeline for Logs and Metrics, Between Your Apps and Your Backends"
 shortTitle: Vector observability pipeline
-summary: "Vector (vectordotdev/vector) is an open-source pipeline that collects, transforms and routes logs and metrics. It sits between your apps or agents and backends such as Loki and Prometheus. This page covers where to put it (agent, aggregator, behind existing agents), how it works (sources, transforms and sinks, VRL, buffers and backpressure, end-to-end acknowledgements), and how it compares to the OpenTelemetry Collector. The lab runs it on your laptop with Docker Compose and your notification-service, including the Filebeat → Loki path topic 05 couldn't do."
+summary: "Vector (vectordotdev/vector) is an open-source pipeline that collects, transforms and routes logs and metrics. It sits between your apps or agents and backends such as Loki and Prometheus. This page covers where to put it (agent, aggregator, behind existing agents), how it works (sources, transforms and sinks, VRL, buffers and backpressure, end-to-end acknowledgements), and how it compares to the OpenTelemetry Collector. The lab runs it on your laptop with Docker Compose and your notification-service, including the Filebeat → Loki path the OTel Java on KinD page couldn't do."
 indexSummary: "Vector agent/aggregator, VRL, disk buffers and acks; Compose lab: notification-service → Vector (and Filebeat) → Loki + Prometheus"
-area: Observability
 added: "2026-11-12"
 tags: [Vector, Observability, Loki, Prometheus, Filebeat, VRL]
 ---
 
 <Muted>
-Written against Vector v0.61.0 (`timberio/vector:0.61.0-debian`), with docs read from the `v0.61.0` tag of [vectordotdev/vector](https://github.com/vectordotdev/vector/tree/v0.61.0). Other images: Loki 3.7.9, Prometheus v3.15.1, Grafana 13.3.0, Filebeat 9.5.6, the same backend versions as [topic 05](/topics/05-otel-java-kind). Every command in Part 3 ran in this session, and the outputs are copied from that run.
+Written against Vector v0.61.0 (`timberio/vector:0.61.0-debian`), with docs read from the `v0.61.0` tag of [vectordotdev/vector](https://github.com/vectordotdev/vector/tree/v0.61.0). Other images: Loki 3.7.9, Prometheus v3.15.1, Grafana 13.3.0, Filebeat 9.5.6, the same backend versions as [OTel Java on KinD](/observability/otel-java-kind). Every command in Part 3 ran in this session, and the outputs are copied from that run.
 </Muted>
 
 <Note title="Vector here is not a vector database">
-"Vector" here is the observability tool from [vector.dev](https://vector.dev). It has nothing to do with the embeddings and vector databases in [topic 07](/topics/07-vector-db-project-knowledge).
+"Vector" here is the observability tool from [vector.dev](https://vector.dev). It has nothing to do with the embeddings and vector databases in [Vector DB for project knowledge](/ai/vector-db-project-knowledge).
 </Note>
 
 <Part level={1} id="arch" title="Architecture examples" toc="Architecture">
@@ -147,7 +145,7 @@ It also warns: "Avoid deploying a single monolith aggregator since it introduces
 
 <Block id="arch-c" title="1.4 Architecture C · Vector behind the agents you already run (this lab)" toc="1.4 C · Behind existing agents">
 
-Keep the agents you have and put Vector between them and the backends. This is how Vector fixes the gap in [topic 05 §2.5](/topics/05-otel-java-kind#th-filebeat): Filebeat has no Loki output, but its `output.logstash` can point at Vector's `logstash` source, and Vector has a `loki` sink.
+Keep the agents you have and put Vector between them and the backends. This is how Vector fixes the gap in [OTel Java on KinD §2.5](/observability/otel-java-kind#th-filebeat): Filebeat has no Loki output, but its `output.logstash` can point at Vector's `logstash` source, and Vector has a `loki` sink.
 
 ```mermaid
 flowchart LR
@@ -320,7 +318,7 @@ How to choose:
 - **`drop_newest`** protects the sender and loses data instead.
 - **Disk buffers** survive a Vector restart and ride out a backend outage. [3.7](#im-outage) shows both. They cost disk I/O, and the docs say they need free-space monitoring.
 
-The architecting guide says Vector's built-in buffers mean you don't need "complex external buffers like Kafka". That is the vendor's view. A Kafka tier still gives you replay and many consumers, which a sink buffer does not (see [topic 03](/topics/03-kafka-ha-durability)).
+The architecting guide says Vector's built-in buffers mean you don't need "complex external buffers like Kafka". That is the vendor's view. A Kafka tier still gives you replay and many consumers, which a sink buffer does not (see [Kafka HA and Durability](/messaging/kafka-ha-durability)).
 
 </Block>
 
@@ -354,19 +352,19 @@ The ack support of each source and sink changes between releases. Read the "Ackn
 
 Both are vendor-neutral pipelines with receivers or sources, processors or transforms, and exporters or sinks. This is what I could check against each project's docs:
 
-| | Vector 0.61 | OpenTelemetry Collector (topic 05) |
+| | Vector 0.61 | OpenTelemetry Collector (OTel Java on KinD) |
 | --- | --- | --- |
 | Language | Rust, one binary | Go; "core" and "contrib" distributions, or build your own |
 | Signals | Logs, metrics (beta); traces through the `opentelemetry` source | Traces, metrics, logs (OTLP is the native format) |
 | OTLP | `opentelemetry` source (gRPC 4317, HTTP 4318) and `opentelemetry` sink | Native |
 | Transform language | VRL, compile-time checked, unit-testable with `vector test` | OTTL in the transform and filter processors |
-| Beats/Logstash input | `logstash` source | No Beats receiver (topic 05 §2.5) |
+| Beats/Logstash input | `logstash` source | No Beats receiver (OTel Java on KinD §2.5) |
 | Disk buffering | Built into every sink | Exporter persistent queue (`sending_queue.storage`, usually the `file_storage` extension) |
 | Governance | Datadog-maintained, MPL-2.0 | CNCF project, Apache-2.0 |
 
 Rules of thumb:
 
-- If your apps already use the **OTel SDK or Java agent**, and traces matter, keep the OTel Collector as the OTLP hub (topic 05).
+- If your apps already use the **OTel SDK or Java agent**, and traces matter, keep the OTel Collector as the OTLP hub (OTel Java on KinD).
 - **Vector** suits you best in these cases:
   - you handle mostly logs, from many agents and formats;
   - you need heavy parsing that should be tested;
@@ -701,7 +699,7 @@ datasources:
 
 Notes on choices in `vector.yaml`:
 
-- **Loki labels are few and bounded:** `service`, `level` and `shipper`. Thread, logger and container ID stay in the JSON body, which keeps Loki's index small. This is the same idea as topic 05's label demotion.
+- **Loki labels are few and bounded:** `service`, `level` and `shipper`. Thread, logger and container ID stay in the JSON body, which keeps Loki's index small. This is the same idea as the OTel Java on KinD page's label demotion.
 - **`only_notifications` filters on `shipper == "vector"`.** With Filebeat on, each line arrives twice, once per shipper. Without the filter, `log_to_metric` would count every notification twice.
 - **`tag_cardinality_limit`** keeps at most 50 values per tag. After that it drops the tag (`drop_tag`) rather than the metric. `mode: exact` stores every value it has seen; `probabilistic` uses a bloom filter and less memory.
 
@@ -892,7 +890,7 @@ Loki then held every notification line (11 in that run: 7 from before plus these
 docker compose --profile filebeat down -v     # -v also removes the vector-data buffer volume
 ```
 
-`docker image rm timberio/vector:0.61.0-debian grafana/loki:3.7.9 …` removes the images if you don't need them for topic 05.
+`docker image rm timberio/vector:0.61.0-debian grafana/loki:3.7.9 …` removes the images if you don't need them for the OTel Java on KinD lab.
 
 </Block>
 
@@ -908,7 +906,7 @@ docker compose --profile filebeat down -v     # -v also removes the vector-data 
 - [Elastic · Filebeat Logstash output](https://www.elastic.co/docs/reference/beats/filebeat/logstash-output) and [filestream container parser](https://www.elastic.co/docs/reference/beats/filebeat/filebeat-input-filestream)
 - [Prometheus · remote-write receiver flag](https://prometheus.io/docs/prometheus/latest/command-line/prometheus/)
 - [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/), [exporterhelper persistent queue](https://github.com/open-telemetry/opentelemetry-collector/blob/main/exporter/exporterhelper/README.md) and [transform processor (OTTL)](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/transformprocessor/README.md), for the comparison in 2.6
-- Related pages: [topic 05 · OTel on KinD](/topics/05-otel-java-kind), [topic 03 · Kafka](/topics/03-kafka-ha-durability)
+- Related pages: [OTel Java on KinD](/observability/otel-java-kind), [Kafka HA and Durability](/messaging/kafka-ha-durability)
 
 </Block>
 

@@ -1,4 +1,4 @@
-# Lab 5 · Set up OpenTelemetry metrics
+# Lab 01 · Set up OpenTelemetry metrics
 
 ## Prerequisites
 
@@ -108,7 +108,7 @@ The chart requires `mode` to be set: `daemonset`, `deployment` or `statefulset`.
 `deployment` fits here because the app pushes OTLP to one Service DNS name and nothing needs node-level access. On a single-node kind cluster, a DaemonSet would also give you one pod, just with node-local plumbing you don't need.
 
 Updated the values files in 
-`wq_practical_book/Lab/5.0.otel-metrics/opentelemetry-collector-values.yaml`
+`wq_practical_book/Lab/otel-java-kind/01-metrics/opentelemetry-collector-values.yaml`
 
 To deploy the collector
 ```
@@ -174,8 +174,8 @@ Compare the two errors: `Connection refused` means nothing is listening at that 
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm repo update
 helm pull prometheus-community/prometheus
-# update the wq_practical_book/Lab/5.0.otel-metrics/prometheus-values.yaml
-helm upgrade --install prometheus prometheus-community/prometheus --version 29.47.2 -f Lab/5.0.otel-metrics/prometheus-values.yaml -n observability
+# update the wq_practical_book/Lab/otel-java-kind/01-metrics/prometheus-values.yaml
+helm upgrade --install prometheus prometheus-community/prometheus --version 29.47.2 -f Lab/otel-java-kind/01-metrics/prometheus-values.yaml -n observability
 ```
 
 Add prometheus.internal.kind.test into /etc/hosts

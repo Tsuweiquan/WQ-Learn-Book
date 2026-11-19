@@ -134,7 +134,7 @@ every pod ─stdout─▶ /var/log/pods (on each node)
 ```
 ```bash
 # run from wq_practical_book/
-helm upgrade --install otel-agent open-telemetry/opentelemetry-collector --version 0.178.3 -n observability -f Lab/5.1.otel-logs/logs-opentelemetry-collector-values.yaml
+helm upgrade --install otel-agent open-telemetry/opentelemetry-collector --version 0.178.3 -n observability -f Lab/otel-java-kind/02-logs/logs-opentelemetry-collector-values.yaml
 ```
 ![Opentelemetry diagram](otel-diagram.png)
 
