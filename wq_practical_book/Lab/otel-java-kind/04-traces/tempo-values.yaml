@@ -1,0 +1,23 @@
+# grafana-community/tempo 3.2.1 (Tempo 3.1.1): monolithic, local disk.
+# Only the values that differ from the chart defaults (`helm show values grafana-community/tempo --version 3.2.1`).
+tempo:
+  streamOverHttpEnabled: true        # Grafana can stream search results
+  reportingEnabled: false            # chart default is true: anonymous usage report to Grafana Labs
+
+  metricsGenerator:
+    enabled: true                    # turn spans into span metrics + service graph
+    remoteWriteUrl: "http://prometheus-server.observability.svc.cluster.local:80/api/v1/write"
+    storage:
+      path: "/var/tempo/metrics"     # generator's WAL; kept apart from /var/tempo/traces and /var/tempo/wal
+
+  overrides:
+    defaults:                        # applies to every tenant (there is only one)
+      metrics_generator:
+        processors:                  # which processors run; tempo.metricsGenerator.processor only tunes them
+          - service-graphs
+          - span-metrics
+
+# The chart's Jaeger receivers stay on: `tempo.receivers.jaeger: null` breaks the chart 3.2.1 render
+# (templates/_ports.tpl reads .jaeger.protocols without a nil check). We only use OTLP on 4318.
+
+# persistence.enabled is already false by default: traces live in the container's filesystem, gone on restart.
