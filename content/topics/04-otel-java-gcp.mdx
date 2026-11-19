@@ -96,6 +96,24 @@ flowchart LR
 </Cons>
 </Fit>
 
+**Which Java setup actually feeds this architecture?** A Micrometer dependency on its own is not enough. Micrometer is a facade, and the **registry** decides the output. The managed collector only receives OTLP that the app pushes to it.
+
+| Java app has | What it sends | Gives you | Doesn't give you |
+| --- | --- | --- | --- |
+| `micrometer-registry-prometheus` (Actuator `/actuator/prometheus`) + `PodMonitoring` | Prometheus text, **pulled** by Managed Service for Prometheus | Metrics, Micrometer names | Not OTLP, so it **bypasses** the managed OTel collector. No traces, no log-to-trace links. |
+| `micrometer-registry-otlp` (path 3 in [2.7](#th-micrometer)) | OTLP metrics, **pushed** to `...gke-managed-otel.svc.cluster.local:4318/v1/metrics` via `management.otlp.metrics.export.url` | Metrics over OTLP, Micrometer names | No traces, no log correlation, no OTel semantic-convention names |
+| **OTel Java agent** (paths 1 and 2 in [2.7](#th-micrometer)) | OTLP traces, metrics (and logs if not `none`) | Full OTel: traces, metrics, trace IDs in logs, semantic-convention names, config injected by the `Instrumentation` CR | Nothing missing. You do have to add the agent JAR to the image and manage its version. |
+
+<Tip title="Recommendation">
+Use the **agent**, baked into the image (pinned version, `JAVA_TOOL_OPTIONS=-javaagent:/otel/opentelemetry-javaagent.jar`). Set `OTEL_SERVICE_NAME`, and let the `Instrumentation` CR inject the endpoint. To keep existing Micrometer meters, turn on the bridge (path 2) with `MANAGEMENT_METRICS_ENABLE_JVM=false`. Once OTLP metrics arrive, remove `micrometer-registry-prometheus` and the `PodMonitoring` so the same metrics aren't collected and billed twice.
+</Tip>
+
+<Note title="Unsure">
+- Don't point Micrometer's OTLP registry straight at `telemetry.googleapis.com`. Every request needs a Google OAuth token, and the registry doesn't fetch or refresh one. The managed collector handles auth (see [2.2](#th-collector)).
+- The `Instrumentation` CR injects standard `OTEL_*` variables meant for the OTel SDK/agent. Whether `micrometer-registry-otlp` under Spring Boot picks up the injected endpoint (rather than Boot's default `localhost:4318`) is not verified. Set `MANAGEMENT_OTLP_METRICS_EXPORT_URL` explicitly.
+- The Google docs say the app must already be instrumented with OpenTelemetry. They don't say GKE injects the Java agent itself, so this page assumes it doesn't.
+</Note>
+
 </Block>
 
 <Block id="arch-c" title="1.4 Architecture C · Compute Engine VM with a host collector" toc="1.4 C · Compute Engine VM">
