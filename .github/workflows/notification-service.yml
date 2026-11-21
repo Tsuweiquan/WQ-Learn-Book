@@ -10,12 +10,14 @@ name: notification-service
 #       sudo systemctl restart actions.runner.Tsuweiquan-WQ-Learn-Book.homepc.service
 #   - kind on PATH and a cluster named "kind" (node container kind-control-plane)
 #
-# Only push and manual runs trigger it, never pull_request: this is a public repo, and a
-# pull_request trigger would let a fork's code run on the home machine.
+# Only a push to main (a merged PR) and manual runs trigger it, never pull_request: this
+# is a public repo, and a pull_request trigger would let a fork's code run on the home
+# machine. Pull requests are checked by notification-service-pr.yml on a GitHub-hosted
+# runner instead.
 
 on:
   push:
-    branches: ["**"]
+    branches: ["main"]
     paths:
       - wq_practical_book/apps/notification-service/**
       - wq_practical_book/docker/notification-service/**
