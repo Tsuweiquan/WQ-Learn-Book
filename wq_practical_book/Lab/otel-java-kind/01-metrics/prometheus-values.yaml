@@ -4,7 +4,8 @@
 server:
   extraFlags:
     - web.enable-lifecycle
-    - web.enable-otlp-receiver   # accept OTLP at /api/v1/otlp/v1/metrics
+    - web.enable-otlp-receiver   # accept OTLP at /api/v1/otlp/v1/metrics\
+    - web.enable-remote-write-receiver  # accept remote write at /api/v1/write (Tempo's metrics-generator)
 
   route:
     main:

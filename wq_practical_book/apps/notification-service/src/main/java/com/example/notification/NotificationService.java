@@ -23,8 +23,10 @@ public class NotificationService {
     }
 
     /** "Sending" a notification only adds one to the counter. */
+    @WithSpan
     public long send() {
         long total = sent.incrementAndGet();
+        Span.current().setAttribute("notification.total", total);   // shows up as a span attribute
         sentCounter.increment();
         log.info("Notification sent, total sent={}", total);
         return total;

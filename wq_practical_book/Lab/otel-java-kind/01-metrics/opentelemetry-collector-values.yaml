@@ -28,10 +28,14 @@ config:
     # Add this as a exporter to send logs to Loki via OTLP HTTP
     otlp_http/loki:
       endpoint: "http://loki.observability.svc.cluster.local:3100/otlp"
+    otlp_http/tempo:
+      endpoint: "http://tempo.observability.svc.cluster.local:4318"
   service:
     pipelines:
       metrics:
         exporters: [debug, otlp_http/prometheus]
       logs:
         exporters: [debug, otlp_http/loki]
+      traces:
+        exporters: [debug, otlp_http/tempo]
 ### This config above is to export OTEL Metrics and Logs to Prometheus and Loki via OTLP HTTP
