@@ -1,0 +1,65 @@
+name: notification-service-pr
+
+# Pull request check for the notification-service app: compile, run the tests, package
+# the jar, and build the image (not pushed or loaded anywhere).
+#
+# Runs on a GitHub-hosted runner, so it's safe on pull requests from forks. The
+# self-hosted build that loads the image into KinD is notification-service.yml, which
+# only runs on push.
+
+on:
+  pull_request:
+    paths:
+      - wq_practical_book/apps/notification-service/**
+      - wq_practical_book/docker/notification-service/**
+      - .github/workflows/notification-service-pr.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A new push to the same PR cancels the older run.
+concurrency:
+  group: notification-service-pr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  APP_DIR: wq_practical_book/apps/notification-service
+  IMAGE: notification-service
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"   # matches <java.version> in pom.xml
+          cache: maven
+          cache-dependency-path: ${{ env.APP_DIR }}/pom.xml
+
+      - name: Build and test (compile, test, package)
+        working-directory: ${{ env.APP_DIR }}
+        run: ./mvnw -B verify
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: ${{ env.APP_DIR }}/target/surefire-reports/
+          if-no-files-found: ignore
+
+      - name: Build the image
+        working-directory: wq_practical_book
+        run: |
+          VERSION=$(cd apps/notification-service && ./mvnw -B -q \
+            org.apache.maven.plugins:maven-help-plugin:3.5.1:evaluate \
+            -Dexpression=project.version -DforceStdout)
+          echo "Version: $VERSION"
+          docker build -f docker/notification-service/Dockerfile \
+            --build-arg APP_VERSION="$VERSION" \
+            -t "${IMAGE}:${VERSION}" .
