@@ -3,8 +3,10 @@ name: helm-lint
 # Lints and renders every Helm chart under wq_practical_book/helm/ and validates the
 # rendered manifests against the Kubernetes (and CRD) schemas. Fails on any problem.
 #
-# For each chart it checks the default values, plus each ci/*-values.yaml in the chart
-# (the chart-testing convention), so templates that are off by default get rendered too.
+# A chart with ci/*-values.yaml files is checked with each of those files only (the
+# chart-testing convention). Some upstream charts (Loki, the OTel Collector) refuse to
+# render with their defaults on purpose. A chart without a ci/ folder is checked with its
+# default values.
 #
 # Runs on GitHub-hosted runners, so it's safe to run on pull requests from forks.
 
@@ -47,13 +49,16 @@ jobs:
       - name: Lint, render and validate each chart
         run: |
           set -uo pipefail
+          shopt -s nullglob   # a glob that matches nothing expands to nothing
           failed=0
           fail() { echo "::error file=$1::$2"; failed=1; }
 
           for chart in $(find "$CHARTS_DIR" -name Chart.yaml -not -path '*/charts/*' -exec dirname {} \; | sort); do
             echo "::group::$chart"
-            # Default values first, then every ci/*-values.yaml in the chart.
-            for values in "" $(ls "$chart"/ci/*-values.yaml 2>/dev/null); do
+            # Every ci/*-values.yaml in the chart, or the default values if there are none.
+            ci_values=("$chart"/ci/*-values.yaml)
+            [ ${#ci_values[@]} -eq 0 ] && ci_values=("")
+            for values in "${ci_values[@]}"; do
               label="${values:-default values}"
               args=()
               [ -n "$values" ] && args=(-f "$values")
