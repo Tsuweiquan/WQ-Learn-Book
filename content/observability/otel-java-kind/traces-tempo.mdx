@@ -5,6 +5,7 @@ summary: "Add the third signal to the OTel Java on KinD stack. What a trace and 
 indexSummary: "Traces: spans, propagation, transaction IDs, DB spans + sqlcommenter → Tempo + Grafana on KinD"
 added: "2026-11-18"
 type: deep-dive
+progress: complete
 tags: [OpenTelemetry, Tracing, Tempo, TraceQL, Java, PostgreSQL, Grafana]
 ---
 
@@ -841,6 +842,49 @@ kubectl delete -f Lab/otel-java-kind/04-traces/postgres.yaml
 - Tempo: [Architecture](https://grafana.com/docs/tempo/latest/introduction/architecture/), [3.0 release notes](https://grafana.com/docs/tempo/latest/release-notes/v3-0/), [3.1 release notes](https://grafana.com/docs/tempo/latest/release-notes/v3-1/), [Construct TraceQL queries](https://grafana.com/docs/tempo/latest/traceql/construct-traceql-queries/), [Metrics from traces](https://grafana.com/docs/tempo/latest/metrics-from-traces/), [Service graphs](https://grafana.com/docs/tempo/latest/metrics-from-traces/service_graphs/), [Helm charts](https://grafana.com/docs/tempo/latest/setup/helm-chart/)
 - [grafana-community/helm-charts: tempo chart](https://github.com/grafana-community/helm-charts/tree/main/charts/tempo)
 - Grafana: [Tempo data source](https://grafana.com/docs/grafana/latest/datasources/tempo/configure-tempo-data-source/), [Trace to logs](https://grafana.com/docs/grafana/latest/datasources/tempo/configure-tempo-data-source/configure-trace-to-logs/), [Provisioning the Tempo data source](https://grafana.com/docs/grafana/latest/datasources/tempo/configure-tempo-data-source/provision/), [Loki data source (derived fields)](https://grafana.com/docs/grafana/latest/datasources/loki/configure/)
+
+</Block>
+
+</Part>
+
+<Part level={4} id="self" title="Self implementation" toc="Self implementation">
+
+<Block id="self-run" title="4.1 My run on KinD" toc="4.1 My run">
+
+My own run of this deep dive on the KinD cluster from Labs 01–03, with every command, value file and problem I hit, is in the Practical Book:
+
+- **[Lab 04 · Traces (README-traces.md)](/practical/Lab/otel-java-kind/04-traces/README-traces.md)**
+
+**Status: complete.** Traces go app → Collector → Tempo, span metrics reach Prometheus, and Grafana links all three signals.
+
+<Checklist>
+
+- [x] Tempo 3.1.1 (chart 3.2.1) with the metrics-generator (`span-metrics`, `service-graphs`) remote-writing to Prometheus
+- [x] Prometheus with `--web.enable-remote-write-receiver`
+- [x] Collector `traces` pipeline exporting to Tempo (`otlp_http/tempo`)
+- [x] App: `OTEL_TRACES_EXPORTER=otlp`, and `trace_id` / `span_id` in every stdout line through `LOGGING_PATTERN_LEVEL`
+- [x] The same trace ID in Loki and in Tempo; `traces_spanmetrics_calls_total` in Prometheus
+- [x] Grafana data sources provisioned in values: trace → logs, trace → metrics (span **Links** menu) and log → trace (**View trace**)
+- [x] Loki: `k8s.pod.name` and `service.instance.id` taken out of the default index labels
+
+</Checklist>
+
+Not done in my run:
+
+- `@WithSpan` on `send()`: the annotation is in the code, but the OTel API and annotations dependencies from [3.6](#im-txid) aren't in `pom.xml` yet, so the app needs those and a rebuild
+- PostgreSQL, database `CLIENT` spans and sqlcommenter ([3.7](#im-db)), so the service graph has no `notification-service → postgres` edge
+- Keeping the kubelet's `/actuator/health` probes out of the traces
+
+</Block>
+
+<Block id="self-diff" title="4.2 How my setup differs from this page" toc="4.2 Differences">
+
+| | This page | My run |
+| --- | --- | --- |
+| App | Database-backed `send()` with `@WithSpan`, `X-Trace-Id` filter | In-memory counter, only the Tomcat `SERVER` span |
+| Grafana data sources | Provisioned with `tracesToLogsV2`, `serviceMap`, `derivedFields` | Same, plus `tracesToMetrics` with request rate, error rate and p95 queries on the span metrics |
+| Loki labels | Loki's defaults | `default_resource_attributes_as_index_labels` without `k8s.pod.name` and `service.instance.id`. A `limits_config.otlp_config` rule with `action: structured_metadata` did not override the defaults |
+| Helm lint CI | n/a | Charts with `ci/*-values.yaml` are checked with those files only; Loki's points at the lab values |
 
 </Block>
 
