@@ -1,0 +1,35 @@
+should match snapshot of default values:
+  1: |
+    apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      annotations:
+        kubernetes.io/ingress.class: nginx
+        kubernetes.io/tls-acme: "true"
+      labels:
+        app: zot
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: zot
+        app.kubernetes.io/version: v0.0.0-snapshot
+        helm.sh/chart: zot-0.0.0-snapshot
+        release: RELEASE-NAME
+      name: RELEASE-NAME-zot
+      namespace: NAMESPACE
+    spec:
+      ingressClassName: nginx-test
+      rules:
+        - host: chart-example.local
+          http:
+            paths:
+              - backend:
+                  service:
+                    name: RELEASE-NAME-zot
+                    port:
+                      number: 5000
+                path: /
+                pathType: ImplementationSpecific
+      tls:
+        - hosts:
+            - chart-example.local
+          secretName: chart-example-tls

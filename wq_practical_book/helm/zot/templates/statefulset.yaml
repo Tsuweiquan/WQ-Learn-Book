@@ -1,0 +1,204 @@
+{{- if .Values.persistence  -}}
+{{- $pvcName := default (printf "%s-pvc" .Release.Name) .Values.pvc.name -}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "zot.fullname" . }}
+  namespace: {{ .Values.namespace | default .Release.Namespace }}
+  labels:
+    {{- include "zot.labels" . | nindent 4 }}
+  {{- with .Values.deploymentAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if and .Values.serviceHeadless .Values.serviceHeadless.enabled }}
+  serviceName: {{ include "zot.fullname" . }}-headless
+  {{- end }}
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "zot.selectorLabels" . | nindent 6 }}
+  minReadySeconds: 10
+  {{- if .Values.pvc.create }}
+  volumeClaimTemplates:
+    - metadata:
+        name: {{ $pvcName }}
+      spec:
+        accessModes:
+        {{- if .Values.pvc.accessMode }}
+        - {{ .Values.pvc.accessMode | default "ReadWriteOnce" }}
+        {{- else }}
+        {{- toYaml .Values.pvc.accessModes | nindent 10 }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.pvc.storage }}
+        {{- if .Values.pvc.storageClassName }}
+        storageClassName: "{{ .Values.pvc.storageClassName }}"
+        {{- end }}
+  {{- end }}
+  template:
+    metadata:
+      annotations:
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- if .Values.config }}
+        checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
+        {{- end }}
+        {{- if and .Values.mountConfig .Values.configFiles }}
+        checksum/configFiles: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- end }}
+        {{- if and .Values.mountSecret .Values.secretFiles }}
+        checksum/secretFiles: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- end }}
+        {{- if .Values.forceRoll }}
+        rollme: {{ randAlphaNum 5 | quote }}
+        {{- end }}
+      labels:
+        {{- include "zot.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "zot.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.initContainers }}
+      initContainers:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.extraArgs }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            {{- toYaml .Values.env | nindent 12 }}
+          ports:
+            - name: zot
+              containerPort: {{ .Values.httpGet.port }}
+              protocol: TCP
+          volumeMounts:
+            - mountPath: '/var/lib/registry'
+              name: {{ $pvcName }}
+          {{- if or .Values.mountConfig .Values.config }}
+            - mountPath: '/etc/zot'
+              name: {{ .Release.Name }}-config
+          {{- end }}
+          {{- if .Values.mountSecret }}
+            - mountPath: '/secret'
+              name: {{ .Release.Name }}-secret
+          {{- end }}
+          {{- range .Values.externalSecrets }}
+            - mountPath: {{ .mountPath | quote }}
+              name: {{ .secretName | quote }}
+          {{- end }}
+          {{- with .Values.extraVolumeMounts }}
+          {{- toYaml . | nindent 12 }}
+          {{- end }}
+          livenessProbe:
+            initialDelaySeconds: 5
+            httpGet:
+              path: /livez
+              port: {{ .Values.httpGet.port }}
+              scheme: {{ .Values.httpGet.scheme }}
+          readinessProbe:
+            initialDelaySeconds: 5
+            httpGet:
+              path: /readyz
+              port: {{ .Values.httpGet.port }}
+              scheme: {{ .Values.httpGet.scheme }}
+          startupProbe:
+            initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+            failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+            httpGet:
+              path: /startupz
+              port: {{ .Values.httpGet.port }}
+              scheme: {{ .Values.httpGet.scheme }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.extraContainers }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if or (not .Values.pvc.create) .Values.mountConfig .Values.mountSecret .Values.config .Values.externalSecrets (not (empty .Values.extraVolumes)) }}
+      volumes:
+      {{- if not .Values.pvc.create }}
+        - name: {{ $pvcName }}
+          persistentVolumeClaim:
+            claimName: {{ $pvcName }}
+      {{- end }}
+      {{- if or .Values.mountConfig .Values.config }}
+        - name: {{ .Release.Name }}-config
+          projected:
+            sources:
+              {{- if .Values.mountConfig }}
+              - configMap:
+                  name: {{ .Release.Name }}-config
+              {{- end }}
+              {{- if .Values.config }}
+              - secret:
+                  name: {{ .Release.Name }}-config
+              {{- end }}
+      {{- end }}
+      {{- if .Values.mountSecret }}
+        - name: {{ .Release.Name }}-secret
+          secret:
+            secretName: {{ .Release.Name }}-secret
+      {{- end }}
+      {{- range .Values.externalSecrets }}
+        - name: {{ .secretName }}
+          secret:
+            secretName: {{ .secretName }}
+      {{- end }}
+      {{- with .Values.extraVolumes }}
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- tpl (toYaml .) $ | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- tpl (toYaml .) $ | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- tpl (toYaml .) $ | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.dnsConfig }}
+      dnsConfig:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      dnsPolicy: {{ .Values.dnsPolicy }}
+      {{- with .Values.hostAliases }}
+      hostAliases:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end -}}
+
