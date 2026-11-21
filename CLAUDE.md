@@ -35,7 +35,7 @@ Check the v3 docs instead of relying on memory: https://heroui.com/react/llms.tx
 - `src/lib/redirects.ts` maps old URLs to new ones: the pre-restructure `/topics/NN-slug` pages and the renamed `wq_practical_book/Lab` folders. When you move or rename a page or a lab folder, add its old path there. Never remove entries.
 - `src/components/mdx/` holds the components available inside MDX (mapped in `index.tsx`).
 - `src/pages/`:
-  - `HomePage.tsx`: learning method, topic index grouped by area, practical book, good reads, page types, house rules.
+  - `HomePage.tsx`: learning method (three compact cards), topic index grouped by area, practical book, good reads, page types, house rules, and the CNCF Landscape grid embedded in an iframe (landscape.cncf.io allows framing; there is also a link out).
   - `TopicPage.tsx`: area sidebar (a drawer on a phone), breadcrumbs, the "In this topic" list of child pages, auto-built table of contents, content.
   - `TagsPage.tsx`: `/tags` and `/tags/<tag>`. Tags that differ only in case or punctuation are merged (`kind`, `KinD`).
 - `src/components/`: `SiteHeader` (search, opened with Ctrl/⌘ K or `/`), `TopicNav` (the sidebar tree), `SearchDialog` (searches titles, summaries, tags, area and type, see `src/lib/search.ts`), `TopicRow`.

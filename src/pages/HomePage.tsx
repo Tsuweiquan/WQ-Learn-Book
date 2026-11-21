@@ -10,39 +10,21 @@ import { areaGroups, childrenOf, formatDate, tags, topics } from "../lib/topics"
 const LEVELS = [
   {
     code: "L1",
-    altitude: "High",
     color: "bg-l1",
-    title: "High-level architecture",
-    lead: "Several reference architectures for the topic, side by side.",
-    points: [
-      "Diagram of each architecture with its main components and data flow",
-      "When each one fits: scale, team size, cost, cloud (AWS / GCP) mapping",
-      "What changes between them and why",
-    ],
+    title: "Architecture",
+    lead: "Several reference architectures, each with a diagram, and when to choose which.",
   },
   {
     code: "L2",
-    altitude: "Mid",
     color: "bg-l2",
     title: "Theory",
-    lead: "What the topic is, in depth, and why the industry does it this way.",
-    points: [
-      "Core concepts and vocabulary",
-      "The problems it solves, and what came before it",
-      "Common pros and cons, with trade-offs stated plainly",
-    ],
+    lead: "What it is, why the industry does it this way, the problems it solves, the trade-offs.",
   },
   {
     code: "L3",
-    altitude: "Ground",
     color: "bg-l3",
     title: "Implementation",
-    lead: "Concrete examples you can run, plus a way to verify them locally.",
-    points: [
-      "Code and config examples (Terraform, YAML, scripts as relevant)",
-      "A local test method, e.g. kind, docker compose, emulators",
-      'What "working" looks like: expected output and checks',
-    ],
+    lead: "Runnable code and config, tested on a laptop, with expected output.",
   },
 ];
 
@@ -139,7 +121,10 @@ const SECTIONS = [
   { id: "reads", label: "4. Good reads" },
   { id: "template", label: "5. Page types" },
   { id: "rules", label: "6. House rules" },
+  { id: "landscape", label: "7. CNCF Landscape" },
 ];
+
+const LANDSCAPE_URL = "https://landscape.cncf.io/?view-mode=grid";
 
 function SectionHeading({ children }: { children: ReactNode }) {
   return <h2 className="text-[clamp(26px,4vw,34px)] font-bold">{children}</h2>;
@@ -192,33 +177,26 @@ export function HomePage() {
       </header>
 
       <main className="mx-auto grid w-full max-w-[920px] flex-1 gap-16 px-4 pt-12 pb-18">
-        <section id="method" className="grid gap-5">
+        <section id="method" className="grid gap-4">
           <SectionHeading>1. Learning method</SectionHeading>
-          <p className="max-w-[65ch] text-muted">
-            Every topic is studied at three altitudes, always in this order. Start wide to see the shape, drop into the
-            reasoning, then land on working code.
-          </p>
-          <div className="grid gap-3.5">
+          <p className="max-w-[65ch] text-muted">Every topic is learned top-down, always in this order.</p>
+          <ol className="grid gap-3 md:grid-cols-3">
             {LEVELS.map((level) => (
-              <Card key={level.code} className="grid gap-4 p-5 sm:grid-cols-[72px_minmax(0,1fr)] sm:gap-5">
-                <div
-                  className={`flex items-center gap-2.5 rounded-lg px-3 py-2 font-mono text-[11px] tracking-[0.06em] text-accent-foreground uppercase sm:grid sm:place-items-center sm:content-center sm:gap-0.5 sm:px-1 sm:py-2.5 ${level.color}`}
-                >
-                  <b className="font-display text-lg leading-none tracking-normal sm:text-[26px]">{level.code}</b>
-                  {level.altitude}
-                </div>
-                <div className="grid min-w-0 gap-2">
-                  <h3 className="text-[21px] font-bold">{level.title}</h3>
-                  <p>{level.lead}</p>
-                  <ul className="list-disc pl-5 text-muted">
-                    {level.points.map((p) => (
-                      <li key={p}>{p}</li>
-                    ))}
-                  </ul>
-                </div>
-              </Card>
+              <li key={level.code} className="grid">
+                <Card className="gap-1.5 p-4">
+                  <div className="flex items-center gap-2.5">
+                    <span
+                      className={`rounded-md px-2 py-0.5 font-mono text-xs font-bold text-accent-foreground ${level.color}`}
+                    >
+                      {level.code}
+                    </span>
+                    <h3 className="text-[17px] font-bold">{level.title}</h3>
+                  </div>
+                  <p className="text-sm text-muted">{level.lead}</p>
+                </Card>
+              </li>
             ))}
-          </div>
+          </ol>
         </section>
 
         <section id="topics" className="grid gap-5">
@@ -352,6 +330,33 @@ export function HomePage() {
               </Card>
             ))}
           </div>
+        </section>
+
+        <section id="landscape" className="grid gap-5">
+          <SectionHeading>7. CNCF Landscape</SectionHeading>
+          <p className="max-w-[65ch] text-muted">
+            The live grid of cloud native projects and products, by category. Check what exists and what competes
+            before picking a tool.
+          </p>
+          <Card className="overflow-hidden p-0">
+            <iframe
+              src={LANDSCAPE_URL}
+              title="CNCF Landscape, grid view"
+              loading="lazy"
+              referrerPolicy="no-referrer"
+              sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+              className="block h-[min(80vh,780px)] w-full border-0 bg-white"
+            />
+          </Card>
+          <Link
+            href={LANDSCAPE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-fit text-sm font-semibold text-accent"
+          >
+            Open the full landscape at landscape.cncf.io
+            <ArrowUpRightFromSquare className="ms-1 inline size-3.5" />
+          </Link>
         </section>
       </main>
 
