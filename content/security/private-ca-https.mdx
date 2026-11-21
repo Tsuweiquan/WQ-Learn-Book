@@ -578,6 +578,24 @@ The push refers to repository [zot.internal.kind.test/test/alpine]
 
 `Layer already exists` appears when the image was pushed before through a port-forward. zot stores blobs once, whichever address was used to push them. `x509: certificate signed by unknown authority` means Docker doesn't see the root: check the store you used in [3.6](#im-trust) and restart Docker.
 
+<Note title="The snap Docker daemon may not see your /etc/hosts">
+The push is done by the daemon, not the `docker` CLI, and the snap daemon has its own view of the filesystem. In the test, `getent hosts zot.internal.kind.test` worked in the shell, but the push failed with `dial tcp: lookup zot.internal.kind.test on 192.168.50.1:53: no such host`: the daemon asked the router because its copy of `/etc/hosts` had no `zot` line. Compare what the daemon sees:
+
+```bash
+sudo nsenter -t "$(pgrep -xo dockerd)" -m grep internal.kind.test /etc/hosts
+```
+
+If the line is missing there, discard the snap's saved view and restart it (`sudo /usr/lib/snapd/snap-discard-ns docker`, then `sudo snap restart docker`), or reboot. The likely cause is that snapd keeps a snap's mount namespace across restarts, and an editor that saves by renaming leaves it holding the old file. That explanation wasn't confirmed. Appending with `sudo tee -a /etc/hosts` keeps the same file.
+</Note>
+
+<Note title="After restarting Docker, check the Gateway still answers">
+`sudo snap restart docker` restarts cloud-provider-kind too, and it comes back on a new port for its xDS control server. It then reuses the existing `kindccm-gw-*` Envoy container, whose startup config still points at the old port. Envoy gets no listeners, so the Gateway's IP refuses connections on 80 and 443, while the Gateway's status still says `Programmed`. Remove the stale proxies, and cloud-provider-kind recreates them within about a minute:
+
+```bash
+docker rm -f $(docker ps -aq --filter name=kindccm)
+```
+</Note>
+
 </Block>
 
 <Block id="im-rotation" title="3.8 Check renewal" toc="3.8 Renewal">
@@ -687,5 +705,8 @@ Your notes: [README-cert-manager.md](/practical/Lab/cert-manager/README-cert-man
 
 - After the zot route moved to `sectionName: https`, `http://zot.internal.kind.test` stopped answering. That's expected: a route with a `sectionName` attaches to that listener only ([3.5](#im-routes)).
 - Brave still showed "Not secure" after `update-ca-certificates`, because Chromium-based browsers on Linux use the NSS database, not `/etc/ssl/certs`. Importing the root in Brave's certificate settings fixed it.
+- `docker push zot.internal.kind.test/...` failed with `no such host`, though the shell resolved the name. The snap daemon's view of `/etc/hosts` was an old copy without the `zot` line. Restarting the snap with a fresh namespace fixed it ([3.7](#im-push)).
+- After the Docker restarts, the Gateway refused every connection. Its Envoy proxy still dialled cloud-provider-kind's old xDS port. Removing the `kindccm-*` containers let cloud-provider-kind recreate them ([3.7](#im-push)).
+- `sudo systemctl restart docker` started the old apt Docker daemon, not the snap's. The apt `docker.service` and `docker.socket` are now masked, and the only restart command is `sudo snap restart docker`.
 
 </Part>
