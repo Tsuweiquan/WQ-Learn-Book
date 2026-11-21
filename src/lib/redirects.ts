@@ -17,8 +17,10 @@ export const LEGACY_TOPICS: Record<string, string> = {
   "08-vector-observability-pipeline": "/observability/vector-observability-pipeline",
 };
 
-/** Renamed folders in wq_practical_book/: old prefix → new prefix. */
+/** Renamed folders and files in wq_practical_book/: old prefix → new prefix. The first match wins, so renamed files go before their folder. */
 const LEGACY_PRACTICAL: [string, string][] = [
+  ["Lab/otel-java-kind/02-logs/monolithic-values.yaml", "Lab/otel-java-kind/02-logs/loki-monolithic-values.yaml"],
+  ["Lab/5.1.otel-logs/monolithic-values.yaml", "Lab/otel-java-kind/02-logs/loki-monolithic-values.yaml"],
   ["Lab/5.0.otel-metrics/", "Lab/otel-java-kind/01-metrics/"],
   ["Lab/5.1.otel-logs/", "Lab/otel-java-kind/02-logs/"],
   ["Lab/5.2.grafana/", "Lab/otel-java-kind/03-grafana/"],
