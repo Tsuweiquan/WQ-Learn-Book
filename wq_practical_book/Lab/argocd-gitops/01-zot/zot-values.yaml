@@ -95,7 +95,7 @@ httproute:
   parentRefs:
     - name: gateway
       namespace: gateway-infra
-      sectionName: default  # Optional: specific listener on the gateway
+      sectionName: https  # Optional: specific listener on the gateway
   # Example parentRefs configuration:
   # - name: my-gateway
   #   namespace: gateway-system

@@ -19,3 +19,15 @@ spec:
     allowedRoutes:
       namespaces:
         from: All   # in real clusters prefer Same or Selector
+  - name: https
+    hostname: "*.internal.kind.test"
+    port: 443
+    protocol: HTTPS
+    tls:
+      mode: Terminate
+      certificateRefs:
+      - kind: Secret
+        name: wildcard-internal-kind-test-tls
+    allowedRoutes:
+      namespaces:
+        from: All

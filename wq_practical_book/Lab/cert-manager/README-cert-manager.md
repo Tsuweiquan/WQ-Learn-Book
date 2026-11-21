@@ -50,9 +50,73 @@ kubectl apply -f Lab/cert-manager/ca-certificate-creation.yaml
 
 
 ## Issue a *.internal.kind.test Certificate
-into gateway-infra, next to the Gateway, so the listener can reference its Secret.
 
-## Add an https listener (port 443, tls.mode: Terminate, certificateRefs pointing at that Secret) to kind/gateway.yaml.
-## Trust the CA in Docker at /etc/docker/certs.d/zot.internal.kind.test/ca.crt. There's no port in the directory name, because 443 is the default.
+Issue a certificate
+```yaml
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-internal-kind-test
+  namespace: gateway-infra
+spec:
+  secretName: wildcard-internal-kind-test-tls
+  dnsNames:
+    - "*.internal.kind.test"
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: lab-ca-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+```
 
-docker push zot.internal.kind.test/test/alpine:3.20
+## Update the Gateway with the tls certificate
+Update Gateway
+```yaml
+  - name: https
+    hostname: "*.internal.kind.test"
+    port: 443
+    protocol: HTTPS
+    tls:
+      mode: Terminate
+      certificateRefs:
+      - kind: Secret
+        name: wildcard-internal-kind-test-tls
+    allowedRoutes:
+      namespaces:
+        from: All
+```
+```bash
+kubectl apply -f kind/gateway.yaml
+```
+
+# Trust the CA cert in my computer
+```bash
+kubectl get secret -n cert-manager lab-ca-tls -o jsonpath='{.data.tls\.crt}' \
+  | base64 -d > Lab/cert-manager/wq-lab-ca.crt
+curl -i --cacert Lab/cert-manager/wq-lab-ca.crt https://zot.internal.kind.test/v2/
+
+sudo cp Lab/cert-manager/wq-lab-ca.crt /usr/local/share/ca-certificates/wq-lab-ca.crt
+sudo update-ca-certificates        # should report "1 added"
+sudo snap restart docker
+
+# Add the CA cert into Chromium or your browser
+```
+
+# Update all the other httproute to use https
+Example:
+zot, prometheus, grafana
+```yaml
+# Before
+  parentRefs:
+    - name: gateway
+      namespace: gateway-infra
+      sectionName: default
+# After
+  parentRefs:
+    - name: gateway
+      namespace: gateway-infra
+      sectionName: https
+```
+
