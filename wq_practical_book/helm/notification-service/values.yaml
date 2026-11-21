@@ -11,7 +11,7 @@ image:
   # This sets the pull policy for images.
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "1.0.1"
+  tag: "1.0.2"
 
 # This is for the secrets for pulling an image from a private repository more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
 imagePullSecrets: []
@@ -168,7 +168,7 @@ env:
   OTEL_SERVICE_NAME: notification-service
   OTEL_EXPORTER_OTLP_ENDPOINT: http://opentelemetry-collector.observability.svc.cluster.local:4318
   OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf 
-  OTEL_TRACES_EXPORTER: none
+  OTEL_TRACES_EXPORTER: otlp
   # Enable the bottom if wish to send logs to OTEL collector, which will then send to Loki via OTLP HTTP
   # OTEL_LOGS_EXPORTER: otlp 
   OTEL_LOGS_EXPORTER: none # Keep this as none if wish to send logs via agent to loki directly
@@ -178,3 +178,5 @@ env:
   # turn off every mircometer metrics whose name starts with jvm
   MANAGEMENT_METRICS_ENABLE_JVM: "false"
   MANAGEMENT_METRICS_ENABLE_HTTP: "false"
+  LOGGING_PATTERN_LEVEL: "trace_id=%mdc{trace_id} span_id=%mdc{span_id} %5p"
+

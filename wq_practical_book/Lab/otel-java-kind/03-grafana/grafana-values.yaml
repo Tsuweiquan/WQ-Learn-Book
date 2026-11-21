@@ -812,7 +812,55 @@ plugins: []
 ## Configure grafana datasources
 ## ref: http://docs.grafana.org/administration/provisioning/#datasources
 ##
-datasources: {}
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        uid: prometheus
+        type: prometheus
+        url: http://prometheus-server.observability.svc.cluster.local
+        isDefault: true
+      - name: Loki
+        uid: loki
+        type: loki
+        url: http://loki.observability.svc.cluster.local:3100
+        jsonData:
+          # Log → traces: "View trace" opens Tempo
+          derivedFields:
+            - name: TraceID
+              matcherRegex: 'trace_id=(\w+)'   # capture group 1 = the id
+              datasourceUid: tempo             # internal link to the Tempo data source
+              url: '$${__value.raw}'           # $$ = literal $; Grafana fills in the captured id
+              urlDisplayLabel: View trace
+
+      - name: Tempo
+        uid: tempo
+        type: tempo
+        url: http://tempo.observability.svc.cluster.local:3200
+        jsonData:
+          # Trace → logs: "Logs for this span" opens Loki
+          tracesToLogsV2:
+            datasourceUid: loki               # must match the Loki entry's uid
+            spanStartTimeShift: '-1m'         # widen the log search window around the span
+            spanEndTimeShift: '1m'
+            filterByTraceID: true             # adds |= "<trace id>" (the id is in the stdout line text)
+            tags:
+              - { key: service.name, value: service_name }   # span attribute → Loki label
+          # Trace → metrics: span-metrics from Tempo's metrics-generator (remote-written to Prometheus)
+          tracesToMetrics:
+            datasourceUid: prometheus         # must match the Prometheus entry's uid
+            spanStartTimeShift: '-5m'
+            spanEndTimeShift: '5m'
+            tags:
+              - { key: service.name, value: service }        # span-metrics label is "service"
+            queries:                          # $$ = literal $ in provisioning files; $__tags → service="notification-service"
+              - name: Request rate
+                query: 'sum by (span_name) (rate(traces_spanmetrics_calls_total{$$__tags}[5m]))'
+              - name: Error rate
+                query: 'sum by (span_name) (rate(traces_spanmetrics_calls_total{$$__tags, status_code="STATUS_CODE_ERROR"}[5m]))'
+              - name: p95 latency
+                query: 'histogram_quantile(0.95, sum by (le, span_name) (rate(traces_spanmetrics_latency_bucket{$$__tags}[5m])))'
 #  datasources.yaml:
 #    apiVersion: 1
 #    datasources:

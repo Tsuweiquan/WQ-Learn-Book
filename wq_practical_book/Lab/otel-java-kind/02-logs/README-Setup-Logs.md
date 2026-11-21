@@ -48,9 +48,9 @@ So per-request values (`trace_id`, `span_id`) go in **structured metadata**: sto
 # Helm upgrade
 
 ```bash
-
-
-helm upgrade --install loki grafana-community/loki --version 21.2.3 -f monolithic-values.yaml -n observability
+# run from wq_practical_book/
+helm upgrade --install loki grafana-community/loki --version 21.2.3 -n observability \
+  -f Lab/otel-java-kind/02-logs/loki-monolithic-values.yaml
 ```
 Loki should be deployed now!
 To verify
