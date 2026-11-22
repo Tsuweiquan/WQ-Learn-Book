@@ -99,5 +99,5 @@ jobs:
           helm package helm/notification-service \
             --version "$VERSION" \
             --app-version "$VERSION" \
-            --destination /tmp/charts
-          helm push /tmp/charts/notification-service-"$VERSION".tgz oci://"${REGISTRY}"/charts
+            --destination "$RUNNER_TEMP/charts"
+          helm push "$RUNNER_TEMP/charts/notification-service-$VERSION.tgz" oci://"${REGISTRY}"/charts

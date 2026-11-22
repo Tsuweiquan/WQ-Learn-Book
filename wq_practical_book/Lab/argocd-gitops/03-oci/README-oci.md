@@ -27,8 +27,8 @@ So even with no template changes, every app release produces a chart release.
           helm package helm/notification-service \
             --version "$VERSION" \
             --app-version "$VERSION" \
-            --destination /tmp/charts
-          helm push /tmp/charts/notification-service-"$VERSION".tgz oci://"${REGISTRY}"/charts
+            --destination "$RUNNER_TEMP/charts"
+          helm push "$RUNNER_TEMP/charts/notification-service-$VERSION.tgz" oci://"${REGISTRY}"/charts
 ```
 
 
