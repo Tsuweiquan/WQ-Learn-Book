@@ -1,0 +1,16 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-internal-kind-test
+  namespace: gateway-infra
+spec:
+  secretName: wildcard-internal-kind-test-tls
+  dnsNames:
+    - "*.internal.kind.test"
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: lab-ca-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io

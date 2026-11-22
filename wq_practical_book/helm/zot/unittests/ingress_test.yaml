@@ -1,0 +1,86 @@
+suite: test ingress
+templates:
+  - ingress.yaml
+tests:
+  - it: should be empty if ingress is not enabled
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: should have apiVersion networking.k8s.io/v1 for k8s >= 1.19
+    set:
+      ingress.enabled: true
+    capabilities:
+      majorVersion: 1
+      minorVersion: 19
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Ingress
+      - isAPIVersion:
+          of: networking.k8s.io/v1
+  - it: should have an ingressClassName for k8s >= 1.19
+    set:
+      ingress.enabled: true
+      ingress.className: nginx-test
+    capabilities:
+      majorVersion: 1
+      minorVersion: 19
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.ingressClassName
+          value: nginx-test
+  - it: should match snapshot of default values
+    chart:
+      version: 0.0.0-snapshot
+      appVersion: v0.0.0-snapshot
+    set:
+      ingress.enabled: true
+      ingress.className: nginx-test
+      ingress.annotations:
+        kubernetes.io/ingress.class: nginx
+        kubernetes.io/tls-acme: "true"
+      ingress.tls:
+        - secretName: chart-example-tls
+          hosts:
+            - chart-example.local
+    asserts:
+      - matchSnapshot: { }
+  - it: should carry the standard chart labels
+    release:
+      name: my-zot
+    set:
+      ingress.enabled: true
+    asserts:
+      - isSubset:
+          path: metadata.labels
+          content:
+            app.kubernetes.io/name: zot
+            app.kubernetes.io/instance: my-zot
+            app.kubernetes.io/managed-by: Helm
+            app: zot
+            release: my-zot
+      - exists:
+          path: metadata.labels["helm.sh/chart"]
+  - it: should render tls entries for the legacy single path mode
+    set:
+      ingress.enabled: true
+      ingress.path: /
+      ingress.hosts:
+        - zot.example.com
+      ingress.tls:
+        - secretName: zot-tls
+          hosts:
+            - zot.example.com
+    asserts:
+      - equal:
+          path: spec.tls
+          value:
+            - secretName: zot-tls
+              hosts:
+                - zot.example.com
+      - equal:
+          path: spec.rules[0].host
+          value: zot.example.com

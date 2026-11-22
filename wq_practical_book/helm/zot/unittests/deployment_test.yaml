@@ -1,0 +1,240 @@
+suite: deployment tests
+templates:
+  - deployment.yaml
+release:
+  name: my-release
+tests:
+  - it: should create deployment when persistence is disabled
+    set:
+      persistence: false
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Deployment
+
+  - it: should not create deployment when persistence is enabled
+    set:
+      persistence: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not have initContainers when not set
+    set:
+      persistence: false
+    asserts:
+      - isNull:
+          path: spec.template.spec.initContainers
+
+  - it: should render initContainers when set
+    set:
+      persistence: false
+      initContainers:
+        - name: init-config
+          image: busybox
+          command: ["sh", "-c", "echo initializing"]
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: init-config
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: busybox
+
+  - it: should not have hostAliases when not set
+    set:
+      persistence: false
+    asserts:
+      - isNull:
+          path: spec.template.spec.hostAliases
+
+  - it: should render hostAliases when set
+    set:
+      persistence: false
+      hostAliases:
+        - ip: "1.2.3.4"
+          hostnames:
+            - "foo.local"
+    asserts:
+      - equal:
+          path: spec.template.spec.hostAliases[0].ip
+          value: "1.2.3.4"
+      - equal:
+          path: spec.template.spec.hostAliases[0].hostnames[0]
+          value: foo.local
+
+  - it: should not have topologySpreadConstraints when not set
+    set:
+      persistence: false
+    asserts:
+      - isNull:
+          path: spec.template.spec.topologySpreadConstraints
+
+  - it: should render topologySpreadConstraints when set
+    set:
+      persistence: false
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: zot
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: zot
+    asserts:
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints[0].topologyKey
+          value: topology.kubernetes.io/zone
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints[0].maxSkew
+          value: 1
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints[0].whenUnsatisfiable
+          value: DoNotSchedule
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints[1].topologyKey
+          value: kubernetes.io/hostname
+
+  - it: should render a static nodeSelector unchanged
+    set:
+      persistence: false
+      nodeSelector:
+        disktype: ssd
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector.disktype
+          value: ssd
+
+  - it: should render static tolerations unchanged
+    set:
+      persistence: false
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: zot
+          effect: NoSchedule
+    asserts:
+      - equal:
+          path: spec.template.spec.tolerations[0].key
+          value: dedicated
+      - equal:
+          path: spec.template.spec.tolerations[0].value
+          value: zot
+
+  - it: should render static affinity unchanged
+    set:
+      persistence: false
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: disktype
+                    operator: In
+                    values:
+                      - ssd
+    asserts:
+      - equal:
+          path: spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values[0]
+          value: ssd
+
+  - it: should evaluate templates in nodeSelector
+    set:
+      persistence: false
+      global:
+        pool: gpu-pool
+      nodeSelector:
+        service: "{{ .Values.global.pool }}"
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector.service
+          value: gpu-pool
+
+  - it: should evaluate templates in tolerations
+    set:
+      persistence: false
+      global:
+        pool: gpu-pool
+      tolerations:
+        - key: "{{ .Values.global.pool }}"
+          operator: Equal
+          value: dedicated
+          effect: NoSchedule
+    asserts:
+      - equal:
+          path: spec.template.spec.tolerations[0].key
+          value: gpu-pool
+
+  - it: should evaluate templates in affinity
+    set:
+      persistence: false
+      global:
+        pool: gpu-pool
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: pool
+                    operator: In
+                    values:
+                      - "{{ .Values.global.pool }}"
+    asserts:
+      - equal:
+          path: spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values[0]
+          value: gpu-pool
+
+  - it: should not send authHeader on the probes
+    set:
+      authHeader: "Zm9vOmJhcg=="
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.httpHeaders
+      - notExists:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.httpHeaders
+      - notExists:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.httpHeaders
+
+  - it: should omit securityContext and resources when they are empty
+    set:
+      persistence: false
+    asserts:
+      - notExists:
+          path: spec.template.spec.securityContext
+      - notExists:
+          path: spec.template.spec.containers[0].securityContext
+      - notExists:
+          path: spec.template.spec.containers[0].resources
+
+  - it: should render securityContext, resources and imagePullSecrets when set
+    set:
+      persistence: false
+      imagePullSecrets:
+        - name: regcred
+      podSecurityContext:
+        fsGroup: 1000
+      securityContext:
+        runAsNonRoot: true
+      resources:
+        limits:
+          memory: 1Gi
+    asserts:
+      - equal:
+          path: spec.template.spec.imagePullSecrets
+          value:
+            - name: regcred
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 1000
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 1Gi

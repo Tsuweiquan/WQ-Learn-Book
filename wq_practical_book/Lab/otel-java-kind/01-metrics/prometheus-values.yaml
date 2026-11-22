@@ -13,7 +13,7 @@ server:
       parentRefs:
         - name: gateway
           namespace: gateway-infra
-          sectionName: default
+          sectionName: https
       hostnames:
         - prometheus.internal.kind.test
 

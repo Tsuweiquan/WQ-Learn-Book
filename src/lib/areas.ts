@@ -24,6 +24,7 @@ export const AREAS: Area[] = [
     title: "Observability",
     blurb: "Metrics, logs and traces: collecting, shipping, storing and querying them.",
   },
+  { slug: "security", title: "Security", blurb: "Certificates, trust and keeping traffic encrypted." },
   { slug: "ai", title: "AI", blurb: "Using LLMs and retrieval in day-to-day engineering." },
 ];
 

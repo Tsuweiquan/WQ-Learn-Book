@@ -18,7 +18,7 @@ Tested on the Ubuntu PC while writing this page, in a throwaway kind cluster (`g
 2. Your `notification-service` image and chart pushed as in [3.4](#im-push). Argo CD v3.6.2 installed from the official manifest. The repo credentials and the ApplicationSet in [3.6](#im-appset) deployed dev and prod. Both came up `Synced`/`Healthy` once your `gateway.yaml` Gateway existed, and both answered through the Gateway.
 3. Charts 1.0.2 and 1.0.3 pushed. Dev (`1.*`) moved to 1.0.3 on its own after **241 s**, prod stayed on 1.0.1 until the ApplicationSet was changed, and a manual `kubectl scale` on prod was reverted by self-heal.
 
-Output blocks come from that run, with two edits. The tunnel used port 5099 there, and the page uses 5001. The test promoted prod to 1.0.3, and [3.8](#im-promote) shows 1.0.2 to match the page's flow. IPs, digests and ages will differ.
+Output blocks come from that run, with three edits. The tunnel used port 5099 there, and the page uses 5001. zot ran in the namespace `zot` there, and the page uses `registry`, so the in-cluster URL is `zot.registry.svc.cluster.local`. The test promoted prod to 1.0.3, and [3.8](#im-promote) shows 1.0.2 to match the page's flow. IPs, digests and ages will differ.
 
 Not run: the GitHub Actions workflow in [3.7](#im-ci) itself. Its commands are the ones tested by hand, but the workflow didn't run on the runner. Also not run: the alternative of `insecure-registries` with a Docker restart, and the cleanup of your own cluster.
 </Note>
@@ -242,7 +242,7 @@ flowchart TB
   end
   ci -->|localhost:5001<br/>kubectl port-forward| zot
   ctd -->|zot.internal.kind.test:5000<br/>hosts.toml → LoadBalancer IP| zot
-  repo -->|zot.zot.svc.cluster.local:5000<br/>cluster DNS| zot
+  repo -->|zot.registry.svc.cluster.local:5000<br/>cluster DNS| zot
 ```
 
 - **containerd** runs on the node, not in a pod, so it **can't resolve `*.svc.cluster.local`**. Image references therefore use a name that `hosts.toml` maps to the zot Service's LoadBalancer IP. kind's node images (v0.27.0+) already read `/etc/containerd/certs.d`, and the test confirmed containerd 2.2.0's `config_path = '/etc/containerd/certs.d:/etc/docker/certs.d'`, so no cluster rebuild is needed.
@@ -349,8 +349,8 @@ configFiles:
 helm repo add project-zot https://zotregistry.dev/helm-charts
 helm repo update project-zot
 helm upgrade --install zot project-zot/zot --version 0.1.135 \
-  -n zot --create-namespace -f zot-values.yaml --wait
-kubectl get pods,svc,pvc -n zot
+  -n registry --create-namespace -f zot-values.yaml --wait
+kubectl get pods,svc,pvc -n registry
 ```
 
 ```text output
@@ -367,7 +367,7 @@ persistentvolumeclaim/zot-pvc-zot-0   Bound    pvc-859ae4b4-924e-4b94-aae1-96df5
 Note the `EXTERNAL-IP`. Yours will be a different 172.18.128.x, because your Gateway already has .0. Check that it answers from the PC and from the node:
 
 ```bash
-ZOT_IP=$(kubectl get svc -n zot zot -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+ZOT_IP=$(kubectl get svc -n registry zot -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 curl -s -o /dev/null -w 'from PC: %{http_code}\n' http://$ZOT_IP:5000/v2/
 docker exec kind-control-plane curl -s -o /dev/null -w 'from node: %{http_code}\n' http://$ZOT_IP:5000/v2/
 ```
@@ -386,7 +386,7 @@ The UI is at `http://<ZOT_IP>:5000/` in your browser.
 Image references will be `zot.internal.kind.test:5000/notification-service:<version>`. The directory name under `certs.d` must match that `host:port` exactly. `server` and `[host.…]` say where to actually connect, over plain HTTP. containerd reads this file at pull time, so it needs no restart. kind's own [local registry script](https://kind.sigs.k8s.io/docs/user/local-registry/) writes the file the same way, with `docker exec`.
 
 ```bash
-ZOT_IP=$(kubectl get svc -n zot zot -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+ZOT_IP=$(kubectl get svc -n registry zot -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 DIR=/etc/containerd/certs.d/zot.internal.kind.test:5000
 for node in $(kind get nodes); do
   docker exec "$node" mkdir -p "$DIR"
@@ -423,7 +423,7 @@ Your `deployment.yaml` already renders `{{ .Values.image.tag | default .Chart.Ap
 Open a tunnel and keep it running in a second terminal:
 
 ```bash
-kubectl port-forward -n zot svc/zot 5001:5000
+kubectl port-forward -n registry svc/zot 5001:5000
 ```
 
 Push the image you already have (`notification-service:1.0.1`), then package the chart with `--version` and `--app-version` set to the same number, and push it:
@@ -515,7 +515,7 @@ metadata:
 stringData:
   name: zot
   type: oci
-  url: oci://zot.zot.svc.cluster.local:5000
+  url: oci://zot.registry.svc.cluster.local:5000
   insecureOCIForceHttp: "true"
 ```
 
@@ -543,7 +543,7 @@ spec:
     spec:
       project: default
       source:
-        repoURL: oci://zot.zot.svc.cluster.local:5000/charts/notification-service
+        repoURL: oci://zot.registry.svc.cluster.local:5000/charts/notification-service
         path: .
         targetRevision: '{{ .chartVersion }}'
         helm:
@@ -620,7 +620,7 @@ Change `.github/workflows/notification-service.yml` so that, after building the 
         run: |
           kind get kubeconfig --name "$KIND_CLUSTER" > "$RUNNER_TEMP/kubeconfig"
           kubectl --kubeconfig "$RUNNER_TEMP/kubeconfig" \
-            port-forward -n zot svc/zot "${REGISTRY_PORT}:5000" > "$RUNNER_TEMP/pf.log" 2>&1 &
+            port-forward -n registry svc/zot "${REGISTRY_PORT}:5000" > "$RUNNER_TEMP/pf.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/pf.pid"
           for i in $(seq 1 20); do
             curl -sf "http://localhost:${REGISTRY_PORT}/v2/" > /dev/null && exit 0
@@ -697,7 +697,7 @@ NAME                        SYNC     HEALTH    TARGET
 notification-service-dev    Synced   Healthy   1.*
 notification-service-prod   Synced   Healthy   1.0.2
 
-SOURCE  oci://zot.zot.svc.cluster.local:5000/charts/notification-service
+SOURCE  oci://zot.registry.svc.cluster.local:5000/charts/notification-service
 ID      DATE                           REVISION
 0       2026-11-21 12:40:15 +0800 +08  1.0.1 (sha256:)
 1       2026-11-21 12:47:34 +0800 +08  1.0.2 (sha256:)
@@ -749,7 +749,7 @@ kubectl delete namespace gitops-dev gitops-prod
 kubectl delete -n argocd \
   -f https://raw.githubusercontent.com/argoproj/argo-cd/v3.6.2/manifests/install.yaml
 kubectl delete namespace argocd
-helm uninstall zot -n zot && kubectl delete namespace zot   # deletes the PVC and the stored images
+helm uninstall zot -n registry && kubectl delete namespace registry   # deletes the PVC and the stored images
 for node in $(kind get nodes); do
   docker exec "$node" rm -rf /etc/containerd/certs.d/zot.internal.kind.test:5000
 done

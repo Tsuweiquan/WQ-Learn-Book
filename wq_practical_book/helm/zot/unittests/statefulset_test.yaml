@@ -1,0 +1,385 @@
+suite: statefulset tests
+templates:
+  - statefulset.yaml
+release:
+  name: my-release
+tests:
+  - it: should not create statefulset when persistence is disabled
+    set:
+      persistence: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should create statefulset when persistence is enabled
+    set:
+      persistence: true
+      pvc:
+        storage: 10Gi
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: StatefulSet
+
+  - it: should handle PVC accessModes as a list
+    set:
+      persistence: true
+      pvc:
+        storage: 10Gi
+        accessModes:
+          - ReadWriteOnce
+          - ReadOnlyMany
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.accessModes[0]
+          value: ReadWriteOnce
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.accessModes[1]
+          value: ReadOnlyMany
+
+  - it: should handle legacy PVC accessMode as a single item
+    set:
+      persistence: true
+      pvc:
+        storage: 10Gi
+        accessMode: ReadWriteMany
+        accessModes: []
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.accessModes[0]
+          value: ReadWriteMany
+      - lengthEqual:
+          path: spec.volumeClaimTemplates[0].spec.accessModes
+          count: 1
+
+  - it: should use default accessMode when neither is specified
+    set:
+      persistence: true
+      pvc:
+        storage: 10Gi
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.accessModes[0]
+          value: ReadWriteOnce
+      - lengthEqual:
+          path: spec.volumeClaimTemplates[0].spec.accessModes
+          count: 1
+
+  - it: should set storageClassName when specified
+    set:
+      persistence: true
+      pvc:
+        storage: 10Gi
+        storageClassName: fast-storage
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.storageClassName
+          value: "fast-storage"
+
+  - it: should not set storageClassName when not specified
+    set:
+      persistence: true
+      pvc:
+        storage: 10Gi
+    asserts:
+      - isNull:
+          path: spec.volumeClaimTemplates[0].spec.storageClassName
+
+  - it: uses <release>-pvc as the VCT name and volumeMount name by default
+    set:
+      persistence: true
+      pvc.create: true
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].metadata.name
+          value: my-release-pvc
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /var/lib/registry
+            name: my-release-pvc
+
+  - it: uses pvc.name verbatim as the VCT name and volumeMount name
+    set:
+      persistence: true
+      pvc.create: true
+      pvc.name: custom-pvc
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].metadata.name
+          value: custom-pvc
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /var/lib/registry
+            name: custom-pvc
+
+  - it: has no volumeClaimTemplates and mounts a pre-existing PVC when create is false
+    set:
+      persistence: true
+      pvc.create: false
+      pvc.name: my-existing-pvc
+    asserts:
+      - isNull:
+          path: spec.volumeClaimTemplates
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: my-existing-pvc
+            persistentVolumeClaim:
+              claimName: my-existing-pvc
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /var/lib/registry
+            name: my-existing-pvc
+
+  - it: defaults PVC name to <release>-pvc when create is false and name is null
+    set:
+      persistence: true
+      pvc.create: false
+    asserts:
+      - isNull:
+          path: spec.volumeClaimTemplates
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: my-release-pvc
+            persistentVolumeClaim:
+              claimName: my-release-pvc
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /var/lib/registry
+            name: my-release-pvc
+
+  - it: should have an headless service when enabled
+    set:
+      persistence: true
+      serviceHeadless:
+        enabled: true
+    asserts:
+      - matchRegex:
+          path: spec.serviceName
+          pattern: .*-headless$
+
+  - it: should not have initContainers when not set
+    set:
+      persistence: true
+    asserts:
+      - isNull:
+          path: spec.template.spec.initContainers
+
+  - it: should render initContainers when set
+    set:
+      persistence: true
+      initContainers:
+        - name: init-config
+          image: busybox
+          command: ["sh", "-c", "echo initializing"]
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: init-config
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: busybox
+
+  - it: should not have hostAliases when not set
+    set:
+      persistence: true
+    asserts:
+      - isNull:
+          path: spec.template.spec.hostAliases
+
+  - it: should render hostAliases when set
+    set:
+      persistence: true
+      hostAliases:
+        - ip: "1.2.3.4"
+          hostnames:
+            - "foo.local"
+    asserts:
+      - equal:
+          path: spec.template.spec.hostAliases[0].ip
+          value: "1.2.3.4"
+      - equal:
+          path: spec.template.spec.hostAliases[0].hostnames[0]
+          value: foo.local
+
+  - it: should not have topologySpreadConstraints when not set
+    set:
+      persistence: true
+    asserts:
+      - isNull:
+          path: spec.template.spec.topologySpreadConstraints
+
+  - it: should render topologySpreadConstraints when set
+    set:
+      persistence: true
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: zot
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: zot
+    asserts:
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints[0].topologyKey
+          value: topology.kubernetes.io/zone
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints[0].maxSkew
+          value: 1
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints[0].whenUnsatisfiable
+          value: DoNotSchedule
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints[1].topologyKey
+          value: kubernetes.io/hostname
+
+  - it: should render a static nodeSelector unchanged
+    set:
+      persistence: true
+      nodeSelector:
+        disktype: ssd
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector.disktype
+          value: ssd
+
+  - it: should render static tolerations unchanged
+    set:
+      persistence: true
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: zot
+          effect: NoSchedule
+    asserts:
+      - equal:
+          path: spec.template.spec.tolerations[0].key
+          value: dedicated
+      - equal:
+          path: spec.template.spec.tolerations[0].value
+          value: zot
+
+  - it: should render static affinity unchanged
+    set:
+      persistence: true
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: disktype
+                    operator: In
+                    values:
+                      - ssd
+    asserts:
+      - equal:
+          path: spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values[0]
+          value: ssd
+
+  - it: should evaluate templates in nodeSelector
+    set:
+      persistence: true
+      global:
+        pool: gpu-pool
+      nodeSelector:
+        service: "{{ .Values.global.pool }}"
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector.service
+          value: gpu-pool
+
+  - it: should evaluate templates in tolerations
+    set:
+      persistence: true
+      global:
+        pool: gpu-pool
+      tolerations:
+        - key: "{{ .Values.global.pool }}"
+          operator: Equal
+          value: dedicated
+          effect: NoSchedule
+    asserts:
+      - equal:
+          path: spec.template.spec.tolerations[0].key
+          value: gpu-pool
+
+  - it: should evaluate templates in affinity
+    set:
+      persistence: true
+      global:
+        pool: gpu-pool
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: pool
+                    operator: In
+                    values:
+                      - "{{ .Values.global.pool }}"
+    asserts:
+      - equal:
+          path: spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values[0]
+          value: gpu-pool
+
+  - it: should not send authHeader on the probes
+    set:
+      persistence: true
+      authHeader: "Zm9vOmJhcg=="
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.httpHeaders
+      - notExists:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.httpHeaders
+      - notExists:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.httpHeaders
+
+  - it: should omit securityContext and resources when they are empty
+    set:
+      persistence: true
+    asserts:
+      - notExists:
+          path: spec.template.spec.securityContext
+      - notExists:
+          path: spec.template.spec.containers[0].securityContext
+      - notExists:
+          path: spec.template.spec.containers[0].resources
+
+  - it: should render securityContext, resources and imagePullSecrets when set
+    set:
+      persistence: true
+      imagePullSecrets:
+        - name: regcred
+      podSecurityContext:
+        fsGroup: 1000
+      securityContext:
+        runAsNonRoot: true
+      resources:
+        limits:
+          memory: 1Gi
+    asserts:
+      - equal:
+          path: spec.template.spec.imagePullSecrets
+          value:
+            - name: regcred
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 1000
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 1Gi

@@ -407,7 +407,7 @@ route:
     parentRefs:
       - name: gateway
         namespace: gateway-infra
-        sectionName: default
+        sectionName: https
     # - name: acme-gw
 
     matches:

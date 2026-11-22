@@ -1,0 +1,118 @@
+# zot
+
+![Version: 0.1.135](https://img.shields.io/badge/Version-0.1.135-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v2.1.23](https://img.shields.io/badge/AppVersion-v2.1.23-informational?style=flat-square)
+
+A zot registry helm chart for Kubernetes
+
+## Values
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| affinity | object | `{}` | Affinity rules for pod assignment. Also rendered through `tpl` (same escaping / untrusted-input note as nodeSelector above). |
+| config | object | `{}` |  |
+| configFiles."config.json" | string | `"{\n  \"storage\": { \"rootDirectory\": \"/var/lib/registry\" },\n  \"http\": {\n    \"address\": \"0.0.0.0\",\n    \"port\": \"5000\",\n    \"readTimeout\": \"60s\",\n    \"writeTimeout\": \"60s\"\n  },\n  \"log\": { \"level\": \"debug\" }\n}"` |  |
+| deploymentAnnotations | object | `{}` |  |
+| dnsConfig | object | `{}` |  |
+| dnsPolicy | string | `"ClusterFirst"` |  |
+| env | string | `nil` |  |
+| externalSecrets | list | `[]` |  |
+| extraArgs | list | `[]` |  |
+| extraContainers | list | `[]` |  |
+| extraObjects | list | `[]` | List of arbitrary Kubernetes objects deployed as part of the Helm release. Rendered through Helm `tpl` with the root context, so objects may use `.Release.Name`, `.Release.Namespace`, `.Values.*`, and chart helpers. |
+| extraVolumeMounts | list | `[]` |  |
+| extraVolumes | list | `[]` |  |
+| forceRoll | bool | `false` | When true, add a random pod annotation so every upgrade rolls the pods. |
+| fullnameOverride | string | `""` | Override the full resource name (defaults to `<release>-zot`). |
+| hostAliases | list | `[]` |  |
+| httpGet.port | int | `5000` |  |
+| httpGet.scheme | string | `"HTTP"` |  |
+| httproute | object | `{"annotations":{},"enabled":false,"hostnames":[],"labels":{},"parentRefs":[],"path":"/","pathType":"PathPrefix","rules":[]}` | HTTPRoute configuration for Gateway API (alternative to Ingress). Only enable this if you have Gateway API CRDs installed and a Gateway controller. |
+| httproute.annotations | object | `{}` | Annotations to add to the HTTPRoute resource. |
+| httproute.enabled | bool | `false` | Enable HTTPRoute resource creation instead of (or in addition to) Ingress. |
+| httproute.hostnames | list | `[]` | Hostnames to match for this HTTPRoute. |
+| httproute.labels | object | `{}` | Labels to add to the HTTPRoute resource. |
+| httproute.parentRefs | list | `[]` | Gateway references that the HTTPRoute attaches to. At least one parentRef is required when HTTPRoute is enabled. |
+| httproute.path | string | `"/"` | Path to match when custom rules are not specified. |
+| httproute.pathType | string | `"PathPrefix"` | Path matching type (PathPrefix, Exact, or RegularExpression). |
+| httproute.rules | list | `[]` | Advanced routing rules (optional). If not specified, a default rule matching the path will be created. Note: Any backendRefs in custom rules will be ignored and the zot service will always be used. |
+| image.pullPolicy | string | `"IfNotPresent"` |  |
+| image.repository | string | `"ghcr.io/project-zot/zot"` |  |
+| image.tag | string | `"v2.1.23"` |  |
+| imagePullSecrets | list | `[]` | Image pull secrets for the zot pods, e.g. `[{name: regcred}]`. |
+| ingress.annotations | object | `{}` |  |
+| ingress.className | string | `"nginx"` |  |
+| ingress.enabled | bool | `false` |  |
+| ingress.hosts[0].host | string | `"chart-example.local"` |  |
+| ingress.hosts[0].paths[0].path | string | `"/"` |  |
+| ingress.pathtype | string | `"ImplementationSpecific"` |  |
+| ingress.tls | list | `[]` |  |
+| initContainers | list | `[]` |  |
+| listenerset | object | `{"annotations":{},"enabled":false,"labels":{},"listeners":[],"parentRef":{"group":"gateway.networking.k8s.io","kind":"Gateway","name":"","namespace":""}}` | ListenerSet configuration for Gateway API. Use this to manage listeners (ports/protocols/TLS) independently from the Gateway resource. The parent Gateway must allow ListenerSet attachment via allowedListeners. Requires Gateway API CRDs with ListenerSet support (gateway.networking.k8s.io/v1 ListenerSet). |
+| listenerset.annotations | object | `{}` | Annotations to add to the ListenerSet resource. You may use annotations compatible with your certificate management stack. |
+| listenerset.enabled | bool | `false` | Enable ListenerSet resource creation. |
+| listenerset.labels | object | `{}` | Labels to add to the ListenerSet resource. |
+| listenerset.listeners | list | `[]` | List of listeners to configure on the parent Gateway. At least one listener is required when ListenerSet is enabled. |
+| listenerset.parentRef | object | `{"group":"gateway.networking.k8s.io","kind":"Gateway","name":"","namespace":""}` | Parent Gateway reference that this ListenerSet attaches to. |
+| listenerset.parentRef.group | string | `"gateway.networking.k8s.io"` | Group of the parent Gateway resource. |
+| listenerset.parentRef.kind | string | `"Gateway"` | Kind of the parent resource. |
+| listenerset.parentRef.name | string | `""` | Name of the parent Gateway. Required when ListenerSet is enabled. |
+| listenerset.parentRef.namespace | string | `""` | Namespace of the parent Gateway. Defaults to the same namespace if not set. |
+| metrics.enabled | bool | `false` |  |
+| metrics.serviceMonitor.basicAuth.passwordKey | string | `"password"` |  |
+| metrics.serviceMonitor.basicAuth.secretName | string | `"basic-auth"` |  |
+| metrics.serviceMonitor.basicAuth.usernameKey | string | `"username"` |  |
+| metrics.serviceMonitor.enabled | bool | `false` |  |
+| metrics.serviceMonitor.interval | string | `"30s"` |  |
+| metrics.serviceMonitor.jobLabel | string | `""` |  |
+| metrics.serviceMonitor.path | string | `"/metrics"` |  |
+| metrics.serviceMonitor.scheme | string | `""` |  |
+| metrics.serviceMonitor.scrapeTimeout | string | `""` |  |
+| mountConfig | bool | `false` |  |
+| mountSecret | bool | `false` |  |
+| nameOverride | string | `""` | Override the chart name used in resource names and the app.kubernetes.io/name label. |
+| namespace | string | `""` |  |
+| nodeSelector | object | `{}` | Node selector for pod assignment. Rendered through `tpl`, so values may contain Helm template expressions (e.g. `{{ .Values.global.pool }}`); a value with no `{{ }}` markers is emitted unchanged. Do not template untrusted input. To output a literal brace, escape it, e.g. `{{ "{{" }}`. |
+| persistence | bool | `false` |  |
+| podAnnotations | object | `{}` |  |
+| podDisruptionBudget | object | `{"enabled":false,"maxUnavailable":null,"minAvailable":null}` | PodDisruptionBudget configuration for the zot pods, to limit disruptions (e.g. node drains) so a minimum number of pods stay available. When enabled, set exactly one of `minAvailable` or `maxUnavailable`. Rendering fails if both or neither is set. |
+| podDisruptionBudget.enabled | bool | `false` | Enable creation of a PodDisruptionBudget for the zot pods. |
+| podDisruptionBudget.maxUnavailable | string | `nil` | Maximum number/percentage of pods that can be unavailable during a disruption. Mutually exclusive with `minAvailable`. |
+| podDisruptionBudget.minAvailable | string | `nil` | Minimum number/percentage of pods that must remain available during a disruption. Mutually exclusive with `maxUnavailable`. |
+| podLabels | object | `{}` |  |
+| podSecurityContext | object | `{}` | Pod-level security context. |
+| priorityClassName | string | `""` |  |
+| pvc.accessModes[0] | string | `"ReadWriteOnce"` |  |
+| pvc.create | bool | `true` |  |
+| pvc.name | string | `nil` |  |
+| pvc.storage | string | `"8Gi"` |  |
+| pvc.storageClassName | string | `nil` |  |
+| replicaCount | int | `1` |  |
+| resources | object | `{}` | CPU/memory resource requests and limits for the zot container. |
+| secretFiles.htpasswd | string | `"admin:$2y$05$vmiurPmJvHylk78HHFWuruFFVePlit9rZWGA/FbZfTEmNRneGJtha\nuser:$2y$05$L86zqQDfH5y445dcMlwu6uHv.oXFgT6AiJCwpv3ehr7idc0rI3S2G"` |  |
+| securityContext | object | `{}` | Security context for the zot container. |
+| service.annotations | object | `{}` |  |
+| service.clusterIP | string | `nil` |  |
+| service.externalTrafficPolicy | string | `""` |  |
+| service.internalTrafficPolicy | string | `""` |  |
+| service.nodePort | string | `nil` |  |
+| service.port | int | `5000` |  |
+| service.trafficDistribution | string | `""` |  |
+| service.type | string | `"NodePort"` |  |
+| serviceAccount.annotations | object | `{}` |  |
+| serviceAccount.create | bool | `true` |  |
+| serviceAccount.name | string | `""` |  |
+| serviceHeadless.annotations | object | `{}` |  |
+| serviceHeadless.enabled | bool | `false` |  |
+| serviceHeadless.port | int | `5000` |  |
+| startupProbe.failureThreshold | int | `3` |  |
+| startupProbe.initialDelaySeconds | int | `5` |  |
+| startupProbe.periodSeconds | int | `10` |  |
+| strategy.type | string | `"RollingUpdate"` |  |
+| test.enabled | bool | `true` | Render the `helm test` hooks. Set to false to leave them out of the release. |
+| test.image.repository | string | `"alpine"` |  |
+| test.image.tag | string | `"3.18"` |  |
+| tolerations | list | `[]` | Tolerations for pod assignment. Also rendered through `tpl` (same escaping / untrusted-input note as nodeSelector above). |
+| topologySpreadConstraints | list | `[]` |  |
+
+----------------------------------------------
+Autogenerated from chart metadata using [helm-docs v1.14.2](https://github.com/norwoodj/helm-docs/releases/v1.14.2)
