@@ -24,7 +24,7 @@ So even with no template changes, every app release produces a chart release.
     - name: Package into OCI and push to the internal registry
         working-directory: wq_practical_book
         run: |
-          helm package apps/notification-service \
+          helm package helm/notification-service \
             --version "$VERSION" \
             --app-version "$VERSION" \
             --destination /tmp/charts
