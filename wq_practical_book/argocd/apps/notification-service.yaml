@@ -1,0 +1,65 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: notification-service
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+  - list:
+      elements:
+      - env: dev
+        chartVersion: "1.*"       # follow every 1.x release
+        helmValues:
+          httpRoute:
+            hostnames:
+              - "notification-service-dev.internal.kind.test"
+          resources:
+            limits:
+              memory: 0.5Gi
+          replicas: 2
+      - env: qa
+        chartVersion: "1.0.3"     # pinned; promote by editing this
+        helmValues:
+          httpRoute:
+            hostnames:
+              - "notification-service-qa.internal.kind.test"
+          resources:
+            limits:
+              memory: 0.5Gi
+      - env: prod
+        chartVersion: "1.0.3"     # pinned; promote by editing this
+        helmValues:
+          httpRoute:
+            hostnames:
+              - "notification-service-prod.internal.kind.test"
+          resources:
+            limits:
+              memory: 1Gi
+  template:
+    metadata:
+      name: 'notification-service-{{ .env }}'
+    spec:
+      project: default
+      source:
+        repoURL: oci://zot.registry.svc.cluster.local:5000/charts/notification-service
+        path: .
+        targetRevision: '{{ .chartVersion }}'
+        helm:
+          releaseName: notification-service
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{ .env }}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+        - CreateNamespace=true
+  templatePatch: |
+    spec:
+      source:
+        helm:
+          valuesObject:
+            {{- toYaml .helmValues | nindent 8 }}

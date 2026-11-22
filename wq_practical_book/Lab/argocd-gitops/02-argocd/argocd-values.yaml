@@ -1,0 +1,34 @@
+# Argo CD Helm chart (argo/argo-cd), chart 10.18.2.
+# Only the values that differ from the chart's defaults. For the full defaults:
+#   helm show values argo/argo-cd --version 10.18.2
+# (helm/argo-cd/values.yaml is the same file from chart 10.18.0)
+
+global:
+  domain: "argocd.internal.kind.test"
+  # Applies to every Deployment the chart creates
+  deploymentStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+
+server:
+  # The UI through my Gateway (kind/gateway.yaml), on the https listener
+  httproute:
+    enabled: true
+    parentRefs:
+      - name: gateway
+        namespace: gateway-infra
+        sectionName: https
+    hostnames:
+      - argocd.internal.kind.test
+
+configs:
+  params:
+    create: true
+    server.insecure: true
+  credentialTemplates:
+    zot:
+      url: "oci://zot.registry.svc.cluster.local:5000"
+      type: "oci"
+      insecureOCIForceHttp: "true"
