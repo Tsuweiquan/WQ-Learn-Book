@@ -5,6 +5,7 @@ summary: "CI stops deploying. It publishes a versioned image and Helm chart to a
 indexSummary: "Pull-based CD: CI → image + chart in OCI (zot) → Argo CD ApplicationSet → dev follows 1.*, prod pinned; on kind"
 added: "2026-11-21"
 tags: [Argo CD, GitOps, ApplicationSet, Helm, OCI, zot, kind, GitHub Actions]
+progress: complete
 ---
 
 <Muted>
@@ -778,8 +779,80 @@ If you keep the workflow change from [3.7](#im-ci), revert it before removing zo
 
 </Part>
 
-<Part level={4} id="self" title="Self implementation">
+<Part level={4} id="self" title="Self implementation" toc="Self implementation">
 
-Your notes go in `wq_practical_book/Lab/argocd-gitops/` (`01-zot/`, `02-argocd/`, `03-ci/`). Use this part to record how your setup differs from the colleague's work setup, in general terms only, because this site is public. For example: TLS and JFrog credentials, not `insecureOCIForceHttp`. Whether the ApplicationSet lives in Git with an Argo CD app that applies it. Which generators they use. How prod promotion is reviewed.
+<Block id="self-run" title="4.1 My run on KinD" toc="4.1 My run">
+
+I ran this lab on my existing KinD cluster, not a throwaway one, and went further than the page: Argo CD manages its own ApplicationSet from Git, and every version bump reaches dev with no manual step. Every command, values file and error is in the Practical Book:
+
+- **[Lab 01 · zot (README-zot.md)](/practical/Lab/argocd-gitops/01-zot/README-zot.md)**
+- **[Lab 02 · Argo CD (README.md)](/practical/Lab/argocd-gitops/02-argocd/README.md)**
+- **[Lab 03 · Chart as OCI (README-oci.md)](/practical/Lab/argocd-gitops/03-oci/README-oci.md)**
+- **[Lab 04 · ApplicationSet (README-appset.md)](/practical/Lab/argocd-gitops/04-applicationset/README-appset.md)**
+
+The GitOps files are [`argocd/root.yaml`](/practical/argocd/root.yaml) and [`argocd/apps/notification-service.yaml`](/practical/argocd/apps/notification-service.yaml).
+
+```mermaid
+flowchart LR
+  push[git push to main] --> ci[GitHub Actions<br/>self-hosted runner]
+  ci -->|image + chart<br/>per version bump| zot[(zot<br/>in the kind cluster)]
+  push -->|argocd/apps| root[Argo CD<br/>root app]
+  root --> appset[ApplicationSet<br/>notification-service]
+  zot -->|chart| appset
+  appset -->|follows 1.*| dev[dev]
+  appset -->|pinned| qa[qa]
+  appset -->|pinned| prod[prod]
+```
+
+**Status: complete.** Two triggers reach the cluster, and neither needs a `kubectl apply`. A version bump on `main` makes CI publish a new image and chart, and dev follows it. A commit to `argocd/apps/` changes the ApplicationSet.
+
+<Checklist>
+
+- [x] zot in `registry` with a PVC, UI and API over HTTPS at `zot.internal.kind.test` through the Gateway
+- [x] The kind nodes pull `zot.internal.kind.test/notification-service` (node DNS and CA set by `kind/zot-node-setup.sh`)
+- [x] Argo CD installed with Helm, UI at `argocd.internal.kind.test` on the Gateway
+- [x] Argo CD pulls the chart from zot by its in-cluster name, with a credential template
+- [x] `root` applies `argocd/apps` from `main`, and the ApplicationSet generates dev, qa and prod
+- [x] CI pushes the image and the chart at the same version; dev followed `1.*` to `1.0.4` while qa and prod stayed pinned to `1.0.3`
+- [x] A Git commit to the ApplicationSet changes a running environment (dev `replicaCount: 2`)
+- [x] Argo CD shows `root` and all three environments `Healthy` and `Synced` ([screenshot in Lab 04](/practical/Lab/argocd-gitops/04-applicationset/README-appset.md))
+
+</Checklist>
+
+</Block>
+
+<Block id="self-diff" title="4.2 How my run differs from the page" toc="4.2 Differences">
+
+| | This page | My run |
+| --- | --- | --- |
+| Registry access | zot's LoadBalancer IP over plain HTTP on `:5000`, mapped in containerd's `hosts.toml` | HTTPS through the Envoy Gateway, with a cert-manager wildcard certificate from my own root CA ([Private CA for HTTPS](/security/private-ca-https)) |
+| Node pulls | `hosts.toml` only | `/etc/hosts` line plus the CA in `certs.d`, re-applied by `kind/zot-node-setup.sh` from cron, because the `/etc/hosts` line is lost when the node restarts |
+| Argo CD install | `install.yaml` manifests | Helm chart `argo/argo-cd` 10.18.2, UI on an HTTPRoute, `server.insecure` because TLS ends at the Gateway |
+| zot credentials | a repo-creds Secret applied by hand | `configs.credentialTemplates` in the Argo CD Helm values |
+| ApplicationSet | `kubectl apply -f appset.yaml` | From Git: `root.yaml` (app of apps on `main`) applies `argocd/apps/` |
+| Environments | `gitops-dev`, `gitops-prod` | `dev`, `qa`, `prod`, with per-environment Helm values through `templatePatch` and `valuesObject` |
+| CI push | through a port-forward tunnel to zot | by name over HTTPS from the self-hosted runner, image and chart in one job |
+| Promotion | `sed` the pin, then `kubectl apply` | edit the pin, push to `main` |
+
+</Block>
+
+<Block id="self-problems" title="4.3 Problems I hit" toc="4.3 Problems">
+
+| Problem | Cause | Fix |
+| --- | --- | --- |
+| The node couldn't pull from zot: `no such host`, then `failed to verify certificate` | The node's DNS is Docker's (`172.18.0.1`), which doesn't read my PC's `/etc/hosts`, and containerd doesn't trust my CA | `/etc/hosts` line and `certs.d/.../ca.crt` on every node, kept in place by a cron job ([Lab 01, section 7](/practical/Lab/argocd-gitops/01-zot/README-zot.md)) |
+| `argocd-repo-server` can't use `zot.internal.kind.test` | It's a pod: CoreDNS doesn't know the name, and the pod doesn't trust my CA | The in-cluster URL `oci://zot.registry.svc.cluster.local:5000` with `insecureOCIForceHttp` |
+| A new chart version still ran the old image | `image.tag` was pinned in the chart's `values.yaml` | `tag: ""`, so the tag follows `appVersion`, and every app release is also a chart release ([Lab 03](/practical/Lab/argocd-gitops/03-oci/README-oci.md)) |
+| `helm-lint` failed on the vendored Argo CD chart | kubeconform has no schema for `CustomResourceDefinition` | `helm/argo-cd/ci/lint-values.yaml` sets `crds.install: false` for CI only |
+| CI's chart step failed: `Chart.yaml file is missing`, then `permission denied` | It packaged the app folder, not `helm/notification-service`, and wrote to a `/tmp/charts` owned by my user, not the runner's | The chart's path, and `$RUNNER_TEMP/charts` |
+| `replicas: 2` did nothing, and Argo CD still showed Synced | The chart reads `replicaCount`; Helm drops keys a chart doesn't use | `replicaCount: 2` ([Lab 04, gotcha](/practical/Lab/argocd-gitops/04-applicationset/README-appset.md)) |
+
+Next:
+
+- Promote prod through Git ([3.8](#im-promote)): change its `chartVersion` to `1.0.4` and push to `main`, then check that a manual `kubectl scale` on prod is reverted
+- A `values.schema.json` for the notification-service chart, so an unknown key fails the render instead of being ignored
+- Move zot, Prometheus and Grafana under Argo CD as `argocd/infrastructure/` Applications
+
+</Block>
 
 </Part>

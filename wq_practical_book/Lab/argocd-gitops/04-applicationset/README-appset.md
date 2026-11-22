@@ -178,3 +178,6 @@ Fix
 Prevent it next time (not done yet)
 - Add `helm/notification-service/values.schema.json` with `"additionalProperties": false`, which means listing every top-level key the chart takes.
 - Helm validates values against the schema on `helm template`, `lint`, `install` and `upgrade`. A key like `replicas` then fails the render, and the Application shows an error instead of a silent no-op.
+
+# Completed!
+![Argo ApplicationSet](argocd-completed.png)
