@@ -18,7 +18,7 @@ spec:
           resources:
             limits:
               memory: 0.5Gi
-          replicas: 3
+          replicaCount: 2
       - env: qa
         chartVersion: "1.0.3"     # pinned; promote by editing this
         helmValues:
