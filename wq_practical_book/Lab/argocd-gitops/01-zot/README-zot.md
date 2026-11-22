@@ -69,14 +69,17 @@ curl -i http://localhost:5001/v2/test/alpine/tags/list
 
 Result: all three `200`. `Docker-Distribution-Api-Version: registry/2.0` on `/v2/`, `{"repositories":["test/alpine"]}`, `{"name":"test/alpine","tags":["3.20"]}`. The image also shows in the UI. The repository path (`test/alpine`) is what's stored; the host part (`localhost:5001`, `zot.internal.kind.test`) is only how each client reaches zot.
 
-## How my setup differs from the page
+## Install cert-manager to get https available
 
-- HTTPRoute through the Gateway for the UI. The page only uses the LoadBalancer IP.
-- Values file is the full chart default with edits, not the page's short file.
+Once install cert-manager and attached a self signed certificate into the envoy gateway api, HTTPS with TLS connectivity is available.
 
-## Problems hit
+```bash
+docker tag alpine:3.20 zot.internal.kind.test/test/alpine:3.20
+docker push zot.internal.kind.test/test/alpine:3.20
+# This should work now!
+The push refers to repository [zot.internal.kind.test/test/alpine]
+08bc4e534116: Layer already exists 
+3.20: digest: sha256:2946df84c6516b588d1a5c256d6b319232a5f4af6134b8044a33f1c77ea20a06 size: 527
+```
 
-1. **UI not reachable after the first install.** The HTTPRoute `parentRefs` still had the chart's example (`namespace: gateway-system`, `sectionName: https`), so no Gateway accepted the route. Fixed by pointing it at `gateway-infra` / `default`.
-2. **UI loaded even with `mountConfig: false`.** zot was running on the image's built-in config, not my `configFiles`, so `docker2s2` compat wasn't on. Set `mountConfig: true`.
-3. **Can't `docker push zot.internal.kind.test/...`.** Docker would use HTTPS for that host. Push through `kubectl port-forward` to `localhost:5001` instead (or add it to `insecure-registries`, which needs a Docker restart; not tried).
-4. **One `curl` returned 404**, then the same URLs all returned 200. Probably a typo in the first command.
+## Patch the CI to push notification-service into Zot

@@ -35,6 +35,7 @@ concurrency:
 env:
   APP_DIR: wq_practical_book/apps/notification-service
   IMAGE: notification-service
+  REGISTRY: zot.internal.kind.test
   KIND_CLUSTER: kind
 
 jobs:
@@ -76,12 +77,18 @@ jobs:
         run: |
           docker image ls "${IMAGE}:${VERSION}"
           docker image inspect "${IMAGE}:${VERSION}" --format 'id={{.Id}} created={{.Created}}'
-
+      
+      # Load the image into the KinD cluster, and check that it is there.
       - name: Load the image into KinD
         run: kind load docker-image "${IMAGE}:${VERSION}" --name "$KIND_CLUSTER"
-
+      
       - name: Check the image is in the KinD node
         # No -it: the runner has no TTY.
         run: |
           docker exec "${KIND_CLUSTER}-control-plane" crictl images \
             | grep -E "${IMAGE}[[:space:]]+${VERSION}[[:space:]]"
+
+      - name: Push the image into the internal registry
+        run: |
+          docker tag "${IMAGE}:${VERSION}" "${REGISTRY}/${IMAGE}:${VERSION}"
+          docker push "${REGISTRY}/${IMAGE}:${VERSION}"
