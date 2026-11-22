@@ -92,3 +92,12 @@ jobs:
         run: |
           docker tag "${IMAGE}:${VERSION}" "${REGISTRY}/${IMAGE}:${VERSION}"
           docker push "${REGISTRY}/${IMAGE}:${VERSION}"
+
+      - name: Package into OCI and push to the internal registry
+        working-directory: wq_practical_book
+        run: |
+          helm package apps/notification-service \
+            --version "$VERSION" \
+            --app-version "$VERSION" \
+            --destination /tmp/charts
+          helm push /tmp/charts/notification-service-"$VERSION".tgz oci://"${REGISTRY}"/charts
