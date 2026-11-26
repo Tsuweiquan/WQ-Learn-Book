@@ -2,7 +2,7 @@ import { ArrowUpRightFromSquare, ChevronRight, File, Folder } from "@gravity-ui/
 import { Card, Link } from "@heroui/react";
 import type { MDXComponents } from "mdx/types";
 import { Children, isValidElement, useMemo, type ComponentProps, type ReactNode } from "react";
-import { Navigate, Link as RouterLink, useParams } from "react-router";
+import { Navigate, Link as RouterLink, useLocation } from "react-router";
 
 import { mdxComponents } from "../components/mdx";
 import { CodeBlock } from "../components/mdx/CodeBlock";
@@ -143,7 +143,9 @@ function Landing() {
 }
 
 export function PracticalPage() {
-  const path = useParams()["*"] ?? "";
+  // Read the file path from the URL, not a route param: two routes render this page
+  // (see App.tsx), and only one of them has a splat.
+  const path = decodeURIComponent(useLocation().pathname.replace(/^\/practical\/?/, ""));
   const file = path ? findPracticalFile(path) : undefined;
   if (path && !file) {
     const moved = legacyPracticalPath(path);

@@ -65,6 +65,9 @@ export function App() {
             {/* Static segments outrank the :area routes, so area folders can't shadow these. */}
             <Route path="/topics/:slug" element={<LegacyTopicRedirect />} />
             <Route path="/practical/*" element={<PracticalPage />} />
+            {/* React Router scores /practical/* (10) below /:area/:slug/:child (12), so a file one
+                folder deep (/practical/argocd/root.yaml) would open as a topic and 404. This route scores 19. */}
+            <Route path="/practical/:folder/:file" element={<PracticalPage />} />
             <Route path="/tags" element={<TagsPage />} />
             <Route path="/tags/:tag" element={<TagPage />} />
             <Route path="/:area/:slug" element={<TopicPage />} />
